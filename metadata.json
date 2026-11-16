@@ -1,0 +1,6 @@
+{
+  "name": "Starfish",
+  "description": "Starfish FM-1 Pocket Synthesizer — Access Virus virtual-analog engine, studio FX, arpeggiator, and 64-step drum machine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
