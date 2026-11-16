@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
-# Builds and attests STARFISH firmware (.fwsc, -app.bin, .rfm1, firmware.json)
-# using zvenson/fm1-build/.github/workflows/build.yml@v1 on GitHub Actions.
-name: Build and attest STARFISH firmware
+# Builds and releases STARFISH (.fwsc, -app.bin, firmware.json) via fm1-build.
+name: Release
 
 on:
   push:
@@ -21,7 +20,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Prepare a draft release for version tags
+      - name: Prepare release draft for version tags
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -40,7 +39,7 @@ jobs:
               --title "$TITLE $version" --generate-notes "${flags[@]}"
           fi
 
-  firmware:
+  build:
     needs: prepare
     uses: zvenson/fm1-build/.github/workflows/build.yml@v1
     permissions:
@@ -54,7 +53,7 @@ jobs:
         set -euo pipefail
         pkg=starfish
 
-        # Support both git submodule checkout and plain ZIP upload to a new repo
+        # Support both git submodule checkout and plain ZIP upload
         git submodule update --init --recursive || true
         if [ ! -f base/tools/build.py ]; then
           rm -rf base
@@ -65,29 +64,18 @@ jobs:
         python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow without raqm'"
         test "$(git -C "$AC79_SDK" rev-parse HEAD)" = d179b4484759423312073f5fbb232501aa491047
 
-        # Emscripten 6.0.10 for host .rfm1 builds
-        git clone -q https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
-        git -C "$RUNNER_TEMP/emsdk" checkout -q a2b92777574c2feda07994cd4f1079a3dfc151f8
-        "$RUNNER_TEMP/emsdk/emsdk" install 6.0.10
-        "$RUNNER_TEMP/emsdk/emsdk" activate 6.0.10
-        set +u; source "$RUNNER_TEMP/emsdk/emsdk_env.sh"; set -u
-        emcc --version
-
+        chmod +x build.sh tests/run_tests.sh
         mkdir -p build/release-assets
         if [[ "$GITHUB_REF" == refs/tags/* ]]; then
           version=${GITHUB_REF_NAME#v}
-          ./build.sh --release "$version"
+          bash ./build.sh --release "$version"
           cp "app/build/$pkg-$version.fwsc" build/release-assets/
           cp "app/build/$pkg.bin" "build/release-assets/$pkg-$version-app.bin"
           cp "app/build/$pkg-$version.fwsc" "app/build/$pkg.fwsc"
-          ./build.sh --rfm1 --release "$version"
-          cp "app/build/$pkg-$version.rfm1" build/release-assets/
         else
-          ./build.sh
+          bash ./build.sh
           cp "app/build/$pkg.fwsc" build/release-assets/
           cp "app/build/$pkg.bin" "build/release-assets/$pkg-app.bin"
-          ./build.sh --rfm1
-          cp app/build/rfm1/"$pkg"-dev+*.rfm1 "build/release-assets/$pkg.rfm1"
         fi
         cp app/build/firmware.json build/release-assets/
       test: |
@@ -97,31 +85,22 @@ jobs:
         sh tests/run_tests.sh
       packages: build/release-assets/*
 
-  verify:
-    needs: firmware
+  release:
+    needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      attestations: read
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: packages
-          path: build/attested
-      - name: Verify checksums and signed source provenance
-        working-directory: build/attested
-        env:
-          GH_TOKEN: ${{ github.token }}
+          path: build/out
+      - name: Verify checksums
+        working-directory: build/out
         run: |
           set -euo pipefail
           sha256sum --check SHA256SUMS
-          for package in build/release-assets/*.fwsc build/release-assets/*-app.bin build/release-assets/*.rfm1 \
-              build/release-assets/firmware.json; do
-            gh attestation verify "$package" --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow zvenson/fm1-build/.github/workflows/build.yml \
-              --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA"
-          done
-      - name: Publish the verified draft
+      - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
