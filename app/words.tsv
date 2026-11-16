@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MPL-2.0
+# STARFISH words for screen readers (fm1-reader)
+# url: https://starfish-fm1.github.io/starfish/words/
+STARFISH	starfish
+HYPRSAW	hypersaw
+WAVETBL	wavetable
+HYPR	hyper
+F1 CUT	filter 1 cutoff
+F2 CUT	filter 2 cutoff
+FLT ENV	filter envelope
+LFO1 DPTH	LFO 1 depth
+LFO1 DST	LFO 1 destination
+LFO2 DST	LFO 2 destination
+DRUM KIT	drum kit
+DRUM BUS	drum bus
+DRUM DEC	drum decay
+RND STYLE	randomizer style
+UNSAVED RANDOM	unsaved random patch
+OCT+ SAVE	press octave plus to save

@@ -1,0 +1,92 @@
+# STARFISH Host Simulator Verification Script
+# Wait for 6-scene animated boot splash to complete
+wait 600
+shot boot.png
+
+# Verify default Bank I (index 8) + Program 0 on fresh boot
+expect bank 8
+expect prog 0
+expect octave 0
+
+# Trigger C4 on key 7 (F3 base + 7 = MIDI 60) and verify note & MIDI output
+key 7 down 100
+wait 50
+expect note 60
+expect midi_out 1
+shot key.png
+key 7 up
+wait 50
+expect note -1
+
+# Test Octave Up & Program navigation
+tap OCT+
+wait 30
+expect octave 1
+expect dirty 1
+
+turn PRESET 1
+wait 30
+expect prog 1
+
+turn K3 3
+wait 200
+expect turns5 3
+
+# Audition note with new preset & octave via MIDI and verify audio energy
+midi 90 3C 64
+wait 30
+expect note 60
+wav note.wav
+wait 200
+wavstop
+expect peak_db_min -35
+midi 80 3C 00
+
+# Press SAVE twice: first opens Save utility, second writes Bank X slot 1 (bank 9)
+tap SAVE
+wait 30
+expect page 9
+tap SAVE
+wait 30
+expect dirty 0
+expect bank 9
+expect store_writes >0
+
+# Reboot and verify Bank X preset + Octave +1 persisted to flash store
+reboot
+wait 600
+expect bank 9
+expect prog 0
+expect octave 1
+
+# Enter SEQ / Drum Machine view, start playback, verify state
+tap SEQ
+wait 30
+tap PLAY
+wait 80
+expect playing 1
+shot seq.png
+tap PLAY
+wait 30
+expect playing 0
+
+# Verify ARP short press toggles arpeggiator
+tap ARP
+wait 30
+expect arp 1
+tap ARP
+wait 30
+expect arp 0
+
+# Verify velocity & aftertouch sensing
+key 7 down 45
+wait 60
+expect vel >30
+expect vel <60
+key 7 up
+wait 40
+key 7 down 100 80
+wait 600
+expect prs >35
+key 7 up
+wait 40
