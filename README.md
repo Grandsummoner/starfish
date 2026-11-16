@@ -20,8 +20,8 @@ Built on [`fm1-base`](https://github.com/charlesvestal/fm1-base) for M-VAVE FM-1
 ### Option 1 — Automated GitHub Release (Recommended)
 
 1. Push this repository to GitHub.
-2. Push a version tag (e.g. `git tag v1.0 && git push origin v1.0`) or trigger **Actions -> Build and attest STARFISH firmware -> Run workflow**.
-3. GitHub Actions compiles **`starfish-1.0.fwsc`** (or `starfish.fwsc`), runs the host verification suite, signs build provenance, and attaches the `.fwsc` to the GitHub Release.
+2. Push a version tag (e.g. `git tag v1.0 && git push origin v1.0`) or trigger **Actions -> Release -> Run workflow**.
+3. GitHub Actions compiles **`starfish-1.0.fwsc`** (or `starfish.fwsc`), runs the host verification suite, and attaches the `.fwsc` to the GitHub Release.
 
 ### Option 2 — Local Linux / macOS Build
 
