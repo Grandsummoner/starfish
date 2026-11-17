@@ -431,10 +431,11 @@ static void render_drums(float *out_l, float *out_r, uint32_t n)
 }
 
 /* --------------------------------------------------- Main render block --- */
+static float block_l[256] PLAT_POOL;
+static float block_r[256] PLAT_POOL;
+
 void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
-    float block_l[256];
-    float block_r[256];
     uint32_t i, v;
     sf_engine_cfg_t *cfg = dsp.cfg;
     sf_preset_t *p = &cfg->patch;

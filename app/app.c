@@ -319,6 +319,7 @@ void app_init(void)
 {
     sf_dsp_init(&eng);
     load_all_from_store();
+    sf_dsp_play_jingle(1u);
 }
 
 /* ----------------------------------------------------------- Scale helpers --- */
@@ -601,23 +602,16 @@ static void draw_starfish_scene(int32_t cx, int32_t cy, uint8_t scene, uint32_t 
 
 void app_splash(void)
 {
-    uint32_t i;
+    /* Called from main_fm1.c before fm1_timer5_start() and fm1_irq_enable_all():
+     * plat_ms() is 0 here on hardware, so draw one crisp frame and return immediately. */
     palette_set(2u);
-    sf_dsp_play_jingle(1u);
-    for (i = 0; i < 6u; i++) {
-        lcd_fill(0, 0, 240, 240, C_BLACK);
-        cv_begin(240, 144, C_BLACK);
-        draw_starfish_scene(120, 62, (uint8_t)i, i * 180u);
-        cv_text(120 - text_w(&FONT_B, "STARFISH") / 2, 98, &FONT_B, "STARFISH", C_WHITE);
-        cv_text(120 - text_w(&FONT_XS, MASCOT_TITLES[i]) / 2, 124, &FONT_XS, MASCOT_TITLES[i], C_HI);
-        cv_blit(0, 48);
-        lcd_sync();
-        if (i < 5u) {
-            uint32_t t0 = plat_ms();
-            while (plat_ms() - t0 < 180u)
-                plat_yield();
-        }
-    }
+    lcd_fill(0, 0, 240, 240, C_BLACK);
+    cv_begin(240, 144, C_BLACK);
+    draw_starfish_scene(120, 62, 0u, 0u);
+    cv_text(120 - text_w(&FONT_B, "STARFISH") / 2, 98, &FONT_B, "STARFISH", C_WHITE);
+    cv_text(120 - text_w(&FONT_XS, MASCOT_TITLES[0]) / 2, 124, &FONT_XS, MASCOT_TITLES[0], C_HI);
+    cv_blit(0, 48);
+    lcd_sync();
 }
 
 /* ------------------------------------------------------------------- UI --- */
