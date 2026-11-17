@@ -180,14 +180,18 @@ jobs:
             if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
               gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" -f sha="$GITHUB_SHA" -F force=true >/dev/null 2>&1 || true
               gh release upload "$tag" "$fwsc_path" --repo "$GITHUB_REPOSITORY" --clobber
-              gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}."
+              gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
+                --prerelease=false \
+                --latest \
+                --title "STARFISH Latest Build" \
+                --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}."
             else
               gh release create "$tag" "$fwsc_path" \
                 --repo "$GITHUB_REPOSITORY" \
                 --target "$GITHUB_SHA" \
                 --title "STARFISH Latest Build" \
                 --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}." \
-                --prerelease --latest=false
+                --latest
             fi
           fi
           {
