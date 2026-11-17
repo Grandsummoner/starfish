@@ -1,11 +1,18 @@
 # SPDX-License-Identifier: MPL-2.0
-# Builds and releases STARFISH (.fwsc, -app.bin, firmware.json) via fm1-build.
-name: Release
+# Builds STARFISH (.fwsc, -app.bin, firmware.json), runs host simulator tests,
+# publishes GitHub Releases on version tags, and deploys the standalone Web MIDI installer.
+name: Build and Release
 
 on:
   push:
+    branches: [main, master]
     tags: ['v[0-9]*']
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Optional version (e.g. 1.0) for a versioned build"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -15,94 +22,180 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  build:
+    name: Build Firmware
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
     steps:
-      - name: Prepare release draft for version tags
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TITLE: STARFISH
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Ensure fm1-base and felucca-bsp are present
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" != refs/tags/* ]]; then exit 0; fi
-          version=${GITHUB_REF_NAME#v}
-          [[ "$version" =~ ^[0-9]{1,2}\.[0-9]{1,2}(\.[0-9]{1,2})?(-[A-Za-z0-9]+)?$ ]]
-          flags=(--prerelease=false)
-          if [[ "$version" == *-* ]]; then flags=(--prerelease --latest=false); fi
-          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft); then
-            [[ "$draft" == true ]] || { echo 'Refusing to rebuild a public release'; exit 1; }
-          else
-            gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
-              --title "$TITLE $version" --generate-notes "${flags[@]}"
+          git submodule update --init --recursive || true
+          if [ ! -f base/tools/build.py ]; then
+            rm -rf base
+            git clone --recursive --depth 1 https://github.com/charlesvestal/fm1-base.git base
+          fi
+          chmod +x build.sh tests/run_tests.sh base/tools/get_toolchain.sh
+
+      - name: Setup Python and Pillow (with raqm)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libfribidi0 xz-utils curl build-essential
+          pip install --quiet pillow
+          python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow requires libraqm/libfribidi0'"
+
+      - name: Cache JieLi toolchain & AC79 SDK
+        id: cache-sdk
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/jieli
+            ${{ runner.temp }}/ac79-sdk
+          key: fm1-jieli-ac79-d179b448-v1
+
+      - name: Setup JieLi toolchain & AC79 SDK
+        run: |
+          set -euo pipefail
+          if [ ! -x "${RUNNER_TEMP}/jieli/toolchain/pi32v2/bin/clang" ]; then
+            sh base/tools/get_toolchain.sh "${RUNNER_TEMP}/jieli"
+          fi
+          if [ ! -f "${RUNNER_TEMP}/ac79-sdk/cpu/wl82/tools/uboot.boot" ]; then
+            rm -rf "${RUNNER_TEMP}/ac79-sdk"
+            for attempt in 1 2 3; do
+              if git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+                  https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "${RUNNER_TEMP}/ac79-sdk"; then
+                break
+              fi
+              echo "AC79 SDK clone attempt ${attempt} failed, retrying..."
+              rm -rf "${RUNNER_TEMP}/ac79-sdk"
+              sleep 5
+            done
+          fi
+          test "$(git -C "${RUNNER_TEMP}/ac79-sdk" rev-parse HEAD)" = d179b4484759423312073f5fbb232501aa491047
+          echo "JIELI_TOOLCHAIN=${RUNNER_TEMP}/jieli/toolchain" >> "$GITHUB_ENV"
+          echo "AC79_SDK=${RUNNER_TEMP}/ac79-sdk" >> "$GITHUB_ENV"
+
+      - name: Build .fwsc package
+        env:
+          INPUT_VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          pkg=starfish
+          version=""
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version=${GITHUB_REF_NAME#v}
+          elif [[ -n "${INPUT_VERSION}" ]]; then
+            version="${INPUT_VERSION#v}"
           fi
 
-  build:
-    needs: prepare
-    uses: zvenson/fm1-build/.github/workflows/build.yml@v1
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    with:
-      sdk: true
-      tests-block: true
-      build: |
-        set -euo pipefail
-        pkg=starfish
+          mkdir -p dist-release dist-pages
+          if [[ -n "$version" ]]; then
+            [[ "$version" =~ ^[0-9]{1,2}\.[0-9]{1,2}(\.[0-9]{1,2})?(-[A-Za-z0-9]+)?$ ]]
+            bash ./build.sh --release "$version"
+            cp "app/build/${pkg}-${version}.fwsc" dist-release/
+            cp "app/build/${pkg}.bin" "dist-release/${pkg}-${version}-app.bin"
+            cp "app/build/${pkg}-${version}.fwsc" "app/build/${pkg}.fwsc"
+            cp "app/build/${pkg}-${version}.fwsc" "dist-pages/${pkg}.fwsc"
+            cp "app/build/${pkg}-${version}.fwsc" "dist-pages/${pkg}-${version}.fwsc"
+          else
+            bash ./build.sh
+            cp "app/build/${pkg}.fwsc" dist-release/
+            cp "app/build/${pkg}.bin" "dist-release/${pkg}-app.bin"
+            cp "app/build/${pkg}.fwsc" "dist-pages/${pkg}.fwsc"
+          fi
+          cp app/build/firmware.json dist-release/
+          (cd dist-release && sha256sum * > SHA256SUMS)
 
-        # Support both git submodule checkout and plain ZIP upload
-        git submodule update --init --recursive || true
-        if [ ! -f base/tools/build.py ]; then
-          rm -rf base
-          git clone --recursive --depth 1 https://github.com/charlesvestal/fm1-base.git base
-        fi
+      - name: Run host verification suite
+        run: |
+          set -euo pipefail
+          sh tests/run_tests.sh
 
-        sudo apt-get install -y -qq libfribidi0
-        python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow without raqm'"
-        test "$(git -C "$AC79_SDK" rev-parse HEAD)" = d179b4484759423312073f5fbb232501aa491047
+      - name: Prepare Web MIDI installer site
+        run: |
+          set -euo pipefail
+          cp index.html dist-pages/index.html
+          cp app/build/firmware.json dist-pages/firmware.json
+          if [ -d web-installer ]; then
+            mkdir -p dist-pages/web-installer
+            cp -r web-installer/* dist-pages/web-installer/
+            cp dist-pages/starfish.fwsc dist-pages/web-installer/starfish.fwsc
+          fi
+          if [ -d app/web/words ]; then
+            cp -r app/web/words dist-pages/words
+          fi
+          touch dist-pages/.nojekyll
 
-        chmod +x build.sh tests/run_tests.sh
-        mkdir -p build/release-assets
-        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-          version=${GITHUB_REF_NAME#v}
-          bash ./build.sh --release "$version"
-          cp "app/build/$pkg-$version.fwsc" build/release-assets/
-          cp "app/build/$pkg.bin" "build/release-assets/$pkg-$version-app.bin"
-          cp "app/build/$pkg-$version.fwsc" "app/build/$pkg.fwsc"
-        else
-          bash ./build.sh
-          cp "app/build/$pkg.fwsc" build/release-assets/
-          cp "app/build/$pkg.bin" "build/release-assets/$pkg-app.bin"
-        fi
-        cp app/build/firmware.json build/release-assets/
-      test: |
-        set -euo pipefail
-        pkg=starfish
-        [ -f "app/build/$pkg.fwsc" ]
-        sh tests/run_tests.sh
-      packages: build/release-assets/*
+      - name: Upload firmware (.fwsc) artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starfish-firmware
+          path: dist-release/
+          if-no-files-found: error
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-pages/
 
   release:
+    name: Create Release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download built firmware
+        uses: actions/download-artifact@v4
         with:
-          name: packages
-          path: build/out
+          name: starfish-firmware
+          path: dist-release
+
       - name: Verify checksums
-        working-directory: build/out
-        run: |
-          set -euo pipefail
-          sha256sum --check SHA256SUMS
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: dist-release
+        run: sha256sum --check SHA256SUMS
+
+      - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+        run: |
+          set -euo pipefail
+          version=${GITHUB_REF_NAME#v}
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist-release/* --clobber
+          else
+            flags=()
+            if [[ "$version" == *-* ]]; then flags+=(--prerelease --latest=false); fi
+            gh release create "$GITHUB_REF_NAME" dist-release/* \
+              --verify-tag \
+              --title "STARFISH ${version}" \
+              --generate-notes "${flags[@]}"
+          fi
+
+  pages:
+    name: Deploy Web Installer
+    needs: build
+    if: github.event_name != 'pull_request'
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write # GitHub Pages deployment OIDC token
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
