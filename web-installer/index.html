@@ -42,8 +42,10 @@
   textarea { width: 100%; box-sizing: border-box; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--fg);
              background: transparent; border: 1px solid var(--dim); border-radius: 6px; padding: 8px; }
   input[type=file] { font: inherit; font-size: 13px; color: var(--fg); max-width: 100%; }
-  .pkgbox { border: 1px solid color-mix(in srgb, var(--dim) 45%, transparent); border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; }
+  .pkgbox { border: 1px dashed color-mix(in srgb, var(--dim) 55%, transparent); border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; transition: border-color .15s ease; }
+  .pkgbox.drag { border-color: var(--accent); border-style: solid; }
   .pkgbox label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 6px; }
+  .pkgmeta { margin: 8px 0 0; font-size: 12px; color: var(--dim); }
   .opt { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 8px; }
   .opt input { margin-top: 6px; accent-color: var(--accent); }
   .backup { border: 2px solid var(--accent); border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; }
@@ -61,15 +63,16 @@
 <main>
   <button type="button" class="lang" id="lang" lang="ja">日本語</button>
   <h1>Install STARFISH</h1>
-  <p data-t="intro">Connect the FM-1 by USB, choose the STARFISH .fwsc file (or place starfish.fwsc beside this page), then press Install. Works in Chrome or Edge.</p>
+  <p data-t="intro">Connect the FM-1 by USB, then press Install. It works in Chrome or Edge; the browser asks once to allow MIDI: allow it.</p>
   <p data-t="warn">Do not unplug the USB cable while writing.</p>
   <p class="small" data-t="direct"></p>
   <p class="small"><span data-t="brick"></span>
     <a href="https://github.com/hugelton/felucca-bsp/tree/main/tools" target="_blank" rel="noopener" data-t="bricklink">recovering an FM-1 that won't start</a></p>
   <p class="small" data-t="back"></p>
-  <div class="pkgbox">
-    <label for="fwscfile" data-t="pickpkg">Firmware package (.fwsc from GitHub Releases):</label>
+  <div class="pkgbox" id="pkgbox">
+    <label for="fwscfile" data-t="pickpkg">STARFISH firmware package (.fwsc — auto-loaded when deployed, or select/drop a file):</label>
     <input type="file" id="fwscfile" accept=".fwsc">
+    <p class="pkgmeta" id="pkgmeta" hidden></p>
   </div>
   <p class="backup"><strong data-t="bakh">Back up first.</strong> <span data-t="confirmbak"></span></p>
   <p><button type="button" id="go" disabled data-t="install">Install</button></p>
@@ -909,8 +912,8 @@ const TEXT = {
     progress: "進行状況", pct: " {n}%",
     warn: "書き込み中は USB を抜かないでください。",
     install: "インストール", other: "English",
-    pickpkg: "ファームウェアファイル (GitHub Releases の .fwsc):",
-    needpkg: "starfish-*.fwsc を選択してください（同じフォルダに starfish.fwsc があれば自動で読み込みます）。",
+    pickpkg: "STARFISH ファームウェア (.fwsc — Pages 配備時は自動読み込み / 手動選択・ドロップ可):",
+    needpkg: "starfish-*.fwsc を選択またはドロップしてください（同じフォルダに starfish.fwsc があれば自動で読み込みます）。",
     direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
     brick: "万一 FM-1 が起動しなくなった場合は、Mac から標準ファームウェアに戻せます:",
     bricklink: "起動しない FM-1 の復旧（英語）",
@@ -936,7 +939,7 @@ const TEXT = {
     noloader: "書き込みモードの FM-1 が見つかりません。USB を挿し直してもう一度押してください。",
     noreturn: "FM-1 が戻ってきません。電源を入れ直してください。",
     mismatch: "書き込みは終わりましたが、FM-1 が別のバージョンを報告しています: ",
-    badpkg: "この .fwsc ファイルは壊れているか FM-1 用ではありません。",
+    badpkg: "この .fwsc ファイルは壊れているか、実際の FM-1 ファームウェアではありません。",
     foreign: "FM-1 が M-VAVE 純正アップデータモードで待機しています。先に純正ファームウェアを戻してください: ",
     leave: "書き込み中です。ページを閉じないでください。",
     license: "MPL-2.0、無保証。",
@@ -960,12 +963,12 @@ const TEXT = {
     pickok: "{port} で {id} が見つかりました。もう一度インストールを押してください。",
   },
   en: {
-    intro: "Connect the FM-1 by USB, choose the STARFISH .fwsc file (or place starfish.fwsc beside this page), then press Install. Works in Chrome or Edge.",
+    intro: "Connect the FM-1 by USB, then press Install. It works in Chrome or Edge; the browser asks once to allow MIDI: allow it.",
     progress: "Progress", pct: ", {n} percent",
     warn: "Do not unplug the USB cable while writing.",
     install: "Install", other: "日本語",
-    pickpkg: "Firmware package (.fwsc from GitHub Releases):",
-    needpkg: "Choose your starfish-*.fwsc file above (or place starfish.fwsc alongside this page).",
+    pickpkg: "STARFISH firmware package (.fwsc — auto-loaded when deployed, or select/drop a file):",
+    needpkg: "Choose or drop your starfish-*.fwsc file above (auto-loaded when starfish.fwsc is beside this page or in GitHub Releases).",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
     brick: "If the FM-1 no longer starts, a Mac can put the stock firmware back:",
     bricklink: "recovering an FM-1 that won't start",
@@ -991,7 +994,7 @@ const TEXT = {
     noloader: "FM-1 update loader did not appear. Replug USB and press Install again.",
     noreturn: "The FM-1 did not come back. Power-cycle it.",
     mismatch: "Written, but the FM-1 reports another version: ",
-    badpkg: "Invalid or corrupted FM-1 .fwsc package.",
+    badpkg: "Invalid, corrupted, or non-executable .fwsc package.",
     foreign: "FM-1 is in M-VAVE updater mode. Finish with M-UPGRADE or flash stock first: ",
     leave: "Writing. Do not close this page.",
     license: "MPL-2.0, no warranty.",
@@ -1059,46 +1062,118 @@ $("bakok").addEventListener("change", () => { $("confirmgo").disabled = !$("bako
 let writing = false;
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
 
+function showPkgMeta(text, linkUrl, linkText) {
+  const el = $("pkgmeta");
+  el.textContent = "";
+  if (!text && !linkUrl) { el.hidden = true; return; }
+  if (text) el.append(text);
+  if (linkUrl) {
+    if (text) el.append(" ");
+    const a = document.createElement("a");
+    a.href = linkUrl;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = linkText || linkUrl;
+    el.append(a);
+  }
+  el.hidden = false;
+}
+
 async function loadPackageBytes(raw, label) {
   const product = productOf(raw);
-  if (!/^FM-1_/.test(product)) throw new Error("unexpected product " + product);
+  if (!/^FM-1_\d+$/.test(product)) throw new Error("unexpected product " + product);
   const img = logicalImage(raw);
   checkUfw(img);
+  const ent = ufwEntries(img);
+  const fl = ent[0];
+  if (!fl || fl.len < 0x10000) throw new Error("flash.bin too small (" + (fl ? fl.len : 0) + " B)");
+  if (!hasLoader(img)) throw new Error("missing FELUCCA-LOADER-1 in image");
   pkgSha256 = await sha256hex(raw);
   pkgProduct = product;
   image = img;
   $("go").disabled = writing;
   const kb = (raw.length / 1024).toFixed(1);
+  showPkgMeta(`${label || "starfish.fwsc"} · ${product} · ${kb} KB · sha256:${pkgSha256.slice(0, 12)}`);
   say(`${label || "STARFISH"} ready (${product} · ${kb} KB)`);
+}
+
+function githubRepoFromPage() {
+  const qs = new URLSearchParams(location.search).get("repo");
+  if (qs && /^[^/\s]+\/[^/\s]+$/.test(qs)) return qs;
+  const m = /^([^.]+)\.github\.io$/.exec(location.hostname);
+  if (!m) return null;
+  const seg = location.pathname.split("/").filter(Boolean)[0];
+  return seg ? `${m[1]}/${seg}` : null;
+}
+
+async function tryFetchFwsc(url, label) {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) return false;
+  const raw = new Uint8Array(await r.arrayBuffer());
+  await loadPackageBytes(raw, label || url.split("/").pop());
+  return true;
 }
 
 (async () => {
   if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
   if (location.protocol !== "file:") {
-    try {
-      const r = await fetch("./starfish.fwsc", { cache: "no-store" });
-      if (r.ok) {
-        const raw = new Uint8Array(await r.arrayBuffer());
-        await loadPackageBytes(raw, "starfish.fwsc");
-        return;
-      }
-    } catch (_) { /* fall back to local picker */ }
+    for (const candidate of ["./starfish.fwsc", "./firmware/starfish.fwsc", "./app/build/starfish.fwsc", "../starfish.fwsc"]) {
+      try {
+        if (await tryFetchFwsc(candidate, "starfish.fwsc")) return;
+      } catch (_) { /* try next candidate */ }
+    }
+    const repo = githubRepoFromPage();
+    if (repo) {
+      try {
+        const relRes = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=5`, { cache: "no-store" });
+        if (relRes.ok) {
+          const rels = await relRes.json();
+          for (const rel of rels) {
+            const asset = (rel.assets || []).find((a) => /\.fwsc$/i.test(a.name) && !/^FM-1\.fwsc$/i.test(a.name));
+            if (asset) {
+              try {
+                if (await tryFetchFwsc(asset.browser_download_url, asset.name)) return;
+              } catch (_) {
+                showPkgMeta("Latest release build:", asset.browser_download_url, `Download ${asset.name}`);
+                sayK("needpkg");
+                return;
+              }
+            }
+          }
+        }
+      } catch (_) { /* fall back to local picker */ }
+      showPkgMeta("Download starfish.fwsc from GitHub Actions / Releases:", `https://github.com/${repo}/actions`, `${repo} Actions`);
+    }
   }
   sayK("needpkg");
 })();
 
-$("fwscfile").addEventListener("change", async (e) => {
+async function handleSelectedFile(f) {
   image = null; pkgProduct = ""; pkgSha256 = "";
   $("go").disabled = true;
-  const f = e.target.files && e.target.files[0];
-  if (!f) { sayK("needpkg"); return; }
+  if (!f) { showPkgMeta(""); sayK("needpkg"); return; }
   try {
     const raw = new Uint8Array(await f.arrayBuffer());
     await loadPackageBytes(raw, f.name);
   } catch (err) {
+    showPkgMeta("");
     sayK("badpkg");
     log(String(err && err.message || err));
   }
+}
+
+$("fwscfile").addEventListener("change", (e) => {
+  handleSelectedFile(e.target.files && e.target.files[0]);
+});
+
+const pkgbox = $("pkgbox");
+pkgbox.addEventListener("dragover", (e) => { e.preventDefault(); pkgbox.classList.add("drag"); });
+pkgbox.addEventListener("dragleave", () => { pkgbox.classList.remove("drag"); });
+pkgbox.addEventListener("drop", (e) => {
+  e.preventDefault();
+  pkgbox.classList.remove("drag");
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handleSelectedFile(f);
 });
 
 let stock = null;

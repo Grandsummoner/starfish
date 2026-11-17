@@ -5,8 +5,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "[starfish] Checking firmware package..."
-test -f app/build/starfish.fwsc
-grep -q "FELUCCA-LOADER-1" app/build/starfish.fwsc
+test -s app/build/starfish.fwsc
+python3 -c 'data = open("app/build/starfish.fwsc", "rb").read(); assert b"FELUCCA-LOADER-1" in data, "Missing FELUCCA-LOADER-1"'
 test -f firmware.json || test -f app/build/firmware.json
 
 echo "[starfish] Building host simulator..."
