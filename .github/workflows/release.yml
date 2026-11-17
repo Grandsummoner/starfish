@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
-# Builds STARFISH (.fwsc, -app.bin, firmware.json), runs host simulator tests,
-# publishes GitHub Releases on version tags, and deploys the standalone Web MIDI installer.
+# Builds STARFISH (.fwsc), runs host simulator tests,
+# publishes the single .fwsc file to GitHub Releases, and deploys the standalone Web MIDI installer.
 name: Build and Release
 
 on:
@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           git submodule update --init --recursive || true
-          if [ ! -f base/tools/build.py ]; then
+          if [ ! -f base/tools/build.py ] || [ ! -d base/bsp/chip ]; then
             rm -rf base
             git clone --recursive --depth 1 https://github.com/charlesvestal/fm1-base.git base
           fi
@@ -55,7 +55,6 @@ jobs:
           python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow requires libraqm/libfribidi0'"
 
       - name: Cache JieLi toolchain & AC79 SDK
-        id: cache-sdk
         uses: actions/cache@v4
         with:
           path: |
@@ -98,23 +97,20 @@ jobs:
             version="${INPUT_VERSION#v}"
           fi
 
+          rm -rf dist-release dist-pages
           mkdir -p dist-release dist-pages
           if [[ -n "$version" ]]; then
             [[ "$version" =~ ^[0-9]{1,2}\.[0-9]{1,2}(\.[0-9]{1,2})?(-[A-Za-z0-9]+)?$ ]]
             bash ./build.sh --release "$version"
-            cp "app/build/${pkg}-${version}.fwsc" dist-release/
-            cp "app/build/${pkg}.bin" "dist-release/${pkg}-${version}-app.bin"
+            cp "app/build/${pkg}-${version}.fwsc" "dist-release/${pkg}-${version}.fwsc"
             cp "app/build/${pkg}-${version}.fwsc" "app/build/${pkg}.fwsc"
             cp "app/build/${pkg}-${version}.fwsc" "dist-pages/${pkg}.fwsc"
-            cp "app/build/${pkg}-${version}.fwsc" "dist-pages/${pkg}-${version}.fwsc"
           else
             bash ./build.sh
-            cp "app/build/${pkg}.fwsc" dist-release/
-            cp "app/build/${pkg}.bin" "dist-release/${pkg}-app.bin"
+            cp "app/build/${pkg}.fwsc" "dist-release/${pkg}.fwsc"
             cp "app/build/${pkg}.fwsc" "dist-pages/${pkg}.fwsc"
           fi
-          cp app/build/firmware.json dist-release/
-          (cd dist-release && sha256sum * > SHA256SUMS)
+          ls -lh dist-release/
 
       - name: Run host verification suite
         run: |
@@ -125,22 +121,16 @@ jobs:
         run: |
           set -euo pipefail
           cp index.html dist-pages/index.html
-          cp app/build/firmware.json dist-pages/firmware.json
-          if [ -d web-installer ]; then
-            mkdir -p dist-pages/web-installer
-            cp -r web-installer/* dist-pages/web-installer/
-            cp dist-pages/starfish.fwsc dist-pages/web-installer/starfish.fwsc
-          fi
           if [ -d app/web/words ]; then
             cp -r app/web/words dist-pages/words
           fi
           touch dist-pages/.nojekyll
 
-      - name: Upload firmware (.fwsc) artifact
+      - name: Upload single .fwsc artifact
         uses: actions/upload-artifact@v4
         with:
-          name: starfish-firmware
-          path: dist-release/
+          name: starfish.fwsc
+          path: dist-release/*.fwsc
           if-no-files-found: error
 
       - name: Upload GitHub Pages artifact
@@ -149,45 +139,56 @@ jobs:
           path: dist-pages/
 
   release:
-    name: Create Release
+    name: Publish .fwsc Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - name: Download built firmware
+      - name: Download built .fwsc
         uses: actions/download-artifact@v4
         with:
-          name: starfish-firmware
+          name: starfish.fwsc
           path: dist-release
 
-      - name: Verify checksums
-        working-directory: dist-release
-        run: sha256sum --check SHA256SUMS
-
-      - name: Publish GitHub Release
+      - name: Publish single .fwsc to GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version=${GITHUB_REF_NAME#v}
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist-release/* --clobber
-          else
+          ls -lh dist-release/
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="$GITHUB_REF_NAME"
+            title="STARFISH ${tag#v}"
             flags=()
-            if [[ "$version" == *-* ]]; then flags+=(--prerelease --latest=false); fi
-            gh release create "$GITHUB_REF_NAME" dist-release/* \
-              --verify-tag \
-              --title "STARFISH ${version}" \
-              --generate-notes "${flags[@]}"
+            if [[ "$tag" == *-* ]]; then flags+=(--prerelease --latest=false); fi
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" dist-release/*.fwsc --clobber
+            else
+              gh release create "$tag" dist-release/*.fwsc \
+                --verify-tag \
+                --title "$title" \
+                --generate-notes "${flags[@]}"
+            fi
+          else
+            tag="latest"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" dist-release/*.fwsc --clobber
+              gh release edit "$tag" --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}."
+            else
+              gh release create "$tag" dist-release/*.fwsc \
+                --target "$GITHUB_SHA" \
+                --title "STARFISH Latest Build" \
+                --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}." \
+                --prerelease --latest=false
+            fi
           fi
 
   pages:
     name: Deploy Web Installer
     needs: build
     if: github.event_name != 'pull_request'
-    continue-on-error: true
     runs-on: ubuntu-24.04
     permissions:
       pages: write
@@ -196,6 +197,33 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Check or enable GitHub Pages
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          build_type=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || echo "")
+          if [ -z "$build_type" ]; then
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null 2>&1 || true
+            build_type=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || echo "")
+          elif [ "$build_type" != "workflow" ]; then
+            gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null 2>&1 || true
+            build_type=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || echo "")
+          fi
+          if [ "$build_type" = "workflow" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy to GitHub Pages
         id: deployment
+        if: steps.check.outputs.enabled == 'true'
         uses: actions/deploy-pages@v4
+
+      - name: Notice if Pages is not enabled yet
+        if: steps.check.outputs.enabled != 'true'
+        run: |
+          echo "GitHub Pages (Source: GitHub Actions) is not enabled yet for ${GITHUB_REPOSITORY}."
+          echo "Enable it at https://github.com/${GITHUB_REPOSITORY}/settings/pages and re-run to publish index.html + starfish.fwsc."
