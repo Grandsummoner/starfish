@@ -1079,7 +1079,7 @@ function showPkgMeta(text, linkUrl, linkText) {
   el.hidden = false;
 }
 
-async function loadPackageBytes(raw, label) {
+async function loadPackageBytes(raw, label, downloadUrl) {
   const product = productOf(raw);
   if (!/^FM-1_\d+$/.test(product)) throw new Error("unexpected product " + product);
   const img = logicalImage(raw);
@@ -1093,7 +1093,7 @@ async function loadPackageBytes(raw, label) {
   image = img;
   $("go").disabled = writing;
   const kb = (raw.length / 1024).toFixed(1);
-  showPkgMeta(`${label || "starfish.fwsc"} · ${product} · ${kb} KB · sha256:${pkgSha256.slice(0, 12)}`);
+  showPkgMeta(`${label || "starfish.fwsc"} · ${product} · ${kb} KB · sha256:${pkgSha256.slice(0, 12)}`, downloadUrl || "", downloadUrl ? `Download ${label || "starfish.fwsc"}` : "");
   say(`${label || "STARFISH"} ready (${product} · ${kb} KB)`);
 }
 
@@ -1110,7 +1110,7 @@ async function tryFetchFwsc(url, label) {
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) return false;
   const raw = new Uint8Array(await r.arrayBuffer());
-  await loadPackageBytes(raw, label || url.split("/").pop());
+  await loadPackageBytes(raw, label || url.split("/").pop(), url);
   return true;
 }
 
