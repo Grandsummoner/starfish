@@ -155,35 +155,46 @@ jobs:
       - name: Publish single .fwsc to GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           ls -lh dist-release/
+          fwsc_path=$(ls -1 dist-release/*.fwsc | head -n 1)
+          fwsc_name=$(basename "$fwsc_path")
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             tag="$GITHUB_REF_NAME"
             title="STARFISH ${tag#v}"
             flags=()
             if [[ "$tag" == *-* ]]; then flags+=(--prerelease --latest=false); fi
-            if gh release view "$tag" >/dev/null 2>&1; then
-              gh release upload "$tag" dist-release/*.fwsc --clobber
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release upload "$tag" "$fwsc_path" --repo "$GITHUB_REPOSITORY" --clobber
             else
-              gh release create "$tag" dist-release/*.fwsc \
+              gh release create "$tag" "$fwsc_path" \
+                --repo "$GITHUB_REPOSITORY" \
                 --verify-tag \
                 --title "$title" \
                 --generate-notes "${flags[@]}"
             fi
           else
             tag="latest"
-            if gh release view "$tag" >/dev/null 2>&1; then
-              gh release upload "$tag" dist-release/*.fwsc --clobber
-              gh release edit "$tag" --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}."
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" -f sha="$GITHUB_SHA" -F force=true >/dev/null 2>&1 || true
+              gh release upload "$tag" "$fwsc_path" --repo "$GITHUB_REPOSITORY" --clobber
+              gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}."
             else
-              gh release create "$tag" dist-release/*.fwsc \
+              gh release create "$tag" "$fwsc_path" \
+                --repo "$GITHUB_REPOSITORY" \
                 --target "$GITHUB_SHA" \
                 --title "STARFISH Latest Build" \
                 --notes "Latest STARFISH FM-1 hardware firmware (.fwsc) from commit ${GITHUB_SHA::7}." \
                 --prerelease --latest=false
             fi
           fi
+          {
+            echo "### STARFISH Hardware Firmware"
+            echo "- File: \`${fwsc_name}\`"
+            echo "- Direct single-file download: https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${fwsc_name}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   pages:
     name: Deploy Web Installer
