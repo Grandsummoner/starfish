@@ -6,6 +6,7 @@
 #define APP_NAME "STARFISH"
 #define APP_SPLASH_RGB RGB(242, 108, 128)
 #define APP_PALETTE 2u
+#define APP_CANVAS_PX (240u * 120u)
 #define APP_BLOCK 256u
 #define APP_TOUCH
 #define APP_BTDEV
@@ -16,13 +17,13 @@
 
 int starfish_ble_off(void);
 
-enum { OBJ_SETTINGS, OBJ_BANKX, OBJ_PANEL, OBJ_BLE, OBJ_NOBJ };
-#define APP_STORE_MAP {0xFC000u, 0xD8000u, 0xDC000u, 0xDE000u}
+enum { OBJ_SETTINGS, OBJ_BANKX0, OBJ_BANKX1, OBJ_BANKX2, OBJ_PANEL, OBJ_BLE, OBJ_NOBJ };
+#define APP_STORE_MAP {0xFC000u, 0xD4000u, 0xD6000u, 0xD8000u, 0xDC000u, 0xDE000u}
 
-#define APP_BACKUP_MAGIC 0x53544631u
-#define APP_BACKUP_VERSION 1u
+#define APP_BACKUP_MAGIC 0x53544632u
+#define APP_BACKUP_VERSION 2u
 #define APP_BACKUP_WHAT "replaces settings and Bank X"
-#define APP_BACKUP_OBJS {OBJ_SETTINGS, OBJ_BANKX}
+#define APP_BACKUP_OBJS {OBJ_SETTINGS, OBJ_BANKX0, OBJ_BANKX1, OBJ_BANKX2}
 
 void app_init(void);
 void app_splash(void);
