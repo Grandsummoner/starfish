@@ -1,0 +1,6 @@
+app/build/
+app/web/words/
+build/
+.DS_Store
+*.o
+*.elf
