@@ -13,6 +13,7 @@
 #define APP_TICK
 #define APP_SPLASH
 #define APP_RESTART
+#define APP_FONT_CACHE 6144u
 #define APP_BLE_AT_BOOT (!starfish_ble_off())
 
 int starfish_ble_off(void);

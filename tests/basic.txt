@@ -24,7 +24,7 @@ wait 30
 expect octave 1
 expect dirty 1
 
-turn PRESET 1
+turn SELECT 1
 wait 30
 expect prog 1
 
@@ -78,7 +78,9 @@ tap ARP
 wait 30
 expect arp 0
 
-# Verify velocity & aftertouch sensing
+# Return to synth HOME mode and verify velocity & aftertouch sensing
+tap HOME
+wait 30
 key 7 down 45
 wait 60
 expect vel >30
