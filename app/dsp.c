@@ -265,7 +265,9 @@ static const uint8_t J_NOTES[6][5] = {
     {57u, 64u, 69u, 71u, 76u},
     {60u, 62u, 64u, 67u, 72u},
 };
-static const uint16_t J_STEP_MS[6] = {130u, 125u, 120u, 125u, 135u, 110u};
+static const uint16_t J_STEP_SAMP[6] = {5733u, 5512u, 5292u, 5512u, 5953u, 4851u};
+static const uint16_t J_HOLD_SAMP[6] = {5045u, 4851u, 4657u, 4851u, 5239u, 4269u};
+static const uint16_t J_LAST_SAMP[6] = {13759u, 13229u, 12701u, 13229u, 14287u, 11642u};
 
 static struct {
     sf_engine_cfg_t *cfg;
@@ -596,8 +598,9 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
     static const float KIT_CRISP[SF_DRUM_KITS] = {
         0.92f, 1.32f, 0.85f, 1.18f, 1.25f, 1.12f, 0.95f, 1.55f, 0.78f, 1.22f
     };
-    float kbase = KIT_BASE_KICK[kit % SF_DRUM_KITS];
-    float crisp = KIT_CRISP[kit % SF_DRUM_KITS];
+    if (kit >= SF_DRUM_KITS) kit = 0u;
+    float kbase = KIT_BASE_KICK[kit];
+    float crisp = KIT_CRISP[kit];
     float room_amt = (bus == SF_BUS_ROOM) ? 0.36f : 0.06f;
 
     for (v = 0; v < SF_DRUM_VOICES; v++) {
@@ -701,13 +704,14 @@ static float drum_rev[256] PLAT_POOL;
 
 static PLAT_RAM_CODE void step_boot_jingle(uint32_t n)
 {
-    uint32_t step_samp = ((uint32_t)J_STEP_MS[dsp.jingle_idx] * 44100u) / 1000u;
+    uint32_t j = dsp.jingle_idx < 6u ? dsp.jingle_idx : 0u;
+    uint32_t step_samp = J_STEP_SAMP[j];
     uint32_t i;
     while (dsp.jingle_step < 5u && dsp.jingle_sample_pos >= dsp.jingle_step * step_samp) {
         uint8_t s = dsp.jingle_step;
-        uint8_t note = J_NOTES[dsp.jingle_idx][s];
+        uint8_t note = J_NOTES[j][s];
         uint8_t vel = (s == 4u) ? 84u : 72u;
-        uint32_t hold_samp = (s == 4u) ? (step_samp * 24u) / 10u : (step_samp * 88u) / 100u;
+        uint32_t hold_samp = (s == 4u) ? J_LAST_SAMP[j] : J_HOLD_SAMP[j];
         internal_note_on(note, vel, 1u);
         dsp.jingle_rel_at[s] = dsp.jingle_step * step_samp + hold_samp;
         dsp.jingle_rel_done[s] = 0u;
