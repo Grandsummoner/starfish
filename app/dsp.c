@@ -194,7 +194,7 @@ static inline __attribute__((always_inline)) float svf_tick_c(svf_t *s, float in
     float v2 = s->ic2 + c->a2 * s->ic1 + c->a3 * v3;
     s->ic1 = sf_flush(2.0f * v1 - s->ic1);
     s->ic2 = sf_flush(2.0f * v2 - s->ic2);
-    if (c->type == SF_FLT_BP) return v1;
+    if (c->type == SF_FLT_BP) return v1 * (0.85f + 0.75f * c->k);
     if (c->type == SF_FLT_HP) return in - c->k * v1 - v2;
     if (c->type == SF_FLT_NOTCH) return in - c->k * v1;
     return v2;
@@ -221,6 +221,7 @@ typedef struct {
     float amp_env;
     float flt_env;
     float pitch_cur;
+    float vel_g_cur;
     float last_l, last_r;
     float click_l, click_r;
     svf_t f1l;
@@ -230,8 +231,10 @@ typedef struct {
 /* ----------------------------------------------------------- Drum voices --- */
 typedef struct {
     uint8_t active;
+    uint8_t click_rem;
     float ph1, ph2;
-    float env, pitch_env;
+    float env, pitch_env, atk_env;
+    float last_s, click_s;
     float level;
     float tone, tune, decay;
     svf_t bp;
@@ -284,6 +287,7 @@ static struct {
     uint32_t rev_ci[4];
     uint32_t rev_ai[2];
     float master_now;
+    float del_tap_cur;
     uint8_t jingle_active;
     uint8_t jingle_idx;
     uint8_t jingle_step;
@@ -304,14 +308,20 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     dsp.last_pitch_note = 60.0f;
     dsp.voice_age = 1u;
     dsp.master_now = 0.0f;
+    dsp.del_tap_cur = 4000.0f;
     dsp.jingle_active = 0u;
     for (i = 0; i < SF_MAX_VOICES; i++) {
         dsp.voices[i].active = 0u;
         dsp.voices[i].click_rem = 0u;
+        dsp.voices[i].vel_g_cur = -1.0f;
         dsp.voices[i].last_l = dsp.voices[i].last_r = 0.0f;
     }
-    for (i = 0; i < SF_DRUM_VOICES; i++)
+    for (i = 0; i < SF_DRUM_VOICES; i++) {
         dsp.drums[i].active = 0u;
+        dsp.drums[i].click_rem = 0u;
+        dsp.drums[i].last_s = 0.0f;
+        dsp.drums[i].atk_env = 0.0f;
+    }
     for (i = 0; i < 32u; i++) {
         dsp.vis.bands[i] = 0u;
         dsp.vis_bands_f[i] = 0.0f;
@@ -328,22 +338,25 @@ void sf_dsp_set_cfg(sf_engine_cfg_t *cfg)
 void sf_dsp_stop_jingle(void)
 {
     uint32_t i;
-    if (!dsp.jingle_active)
-        return;
-    dsp.jingle_active = 0u;
-    for (i = 0; i < SF_MAX_VOICES; i++) {
-        if (dsp.voices[i].active && dsp.voices[i].is_jingle) {
-            dsp.voices[i].gate = 0u;
-            dsp.voices[i].amp_st = ENV_REL;
-            dsp.voices[i].flt_st = ENV_REL;
+    uint32_t f = plat_lock();
+    if (dsp.jingle_active) {
+        dsp.jingle_active = 0u;
+        for (i = 0; i < SF_MAX_VOICES; i++) {
+            if (dsp.voices[i].active && dsp.voices[i].is_jingle) {
+                dsp.voices[i].gate = 0u;
+                dsp.voices[i].amp_st = ENV_REL;
+                dsp.voices[i].flt_st = ENV_REL;
+            }
         }
     }
+    plat_unlock(f);
 }
 
 void sf_dsp_panic(void)
 {
     uint32_t i;
-    sf_dsp_stop_jingle();
+    uint32_t f = plat_lock();
+    dsp.jingle_active = 0u;
     for (i = 0; i < SF_MAX_VOICES; i++) {
         dsp.voices[i].active = 0u;
         dsp.voices[i].gate = 0u;
@@ -352,11 +365,16 @@ void sf_dsp_panic(void)
         dsp.voices[i].flt_env = 0.0f;
         dsp.voices[i].flt_st = ENV_OFF;
         dsp.voices[i].click_rem = 0u;
+        dsp.voices[i].vel_g_cur = -1.0f;
         dsp.voices[i].last_l = dsp.voices[i].last_r = 0.0f;
     }
-    for (i = 0; i < SF_DRUM_VOICES; i++)
+    for (i = 0; i < SF_DRUM_VOICES; i++) {
         dsp.drums[i].active = 0u;
+        dsp.drums[i].click_rem = 0u;
+        dsp.drums[i].last_s = 0.0f;
+    }
     dsp.last_note = -1;
+    plat_unlock(f);
 }
 
 void sf_dsp_start_jingle(uint8_t jingle_idx, const sf_preset_t *jp)
@@ -466,6 +484,7 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
         v->click_l = v->last_l;
         v->click_r = v->last_r;
         v->click_rem = 64u;
+        v->vel_g_cur = -1.0f;
         v->amp_env = 0.0f;
         v->flt_env = 0.0f;
         v->f1l.ic1 = v->f1l.ic2 = 0.0f;
@@ -473,6 +492,7 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
         v->f2r.ic1 = v->f2r.ic2 = 0.0f;
     } else if (!v->active) {
         v->click_rem = 0u;
+        v->vel_g_cur = -1.0f;
         v->last_l = v->last_r = 0.0f;
         v->amp_env = 0.0f;
         v->flt_env = 0.0f;
@@ -507,27 +527,34 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
 
 void sf_dsp_note_on(uint8_t note, uint8_t vel)
 {
+    uint32_t f = plat_lock();
     PLAT_FAR(internal_note_on)(note, vel, 0u);
+    plat_unlock(f);
 }
 
 void sf_dsp_note_off(uint8_t note)
 {
+    uint32_t f = plat_lock();
     PLAT_FAR(internal_note_off)(note);
+    plat_unlock(f);
 }
 
 void sf_dsp_aftertouch(uint8_t note, uint8_t prs)
 {
     uint32_t i;
+    uint32_t f = plat_lock();
     for (i = 0; i < SF_MAX_VOICES; i++) {
         if (dsp.voices[i].active && dsp.voices[i].note == (int8_t)note)
             dsp.voices[i].prs = prs;
     }
+    plat_unlock(f);
 }
 
 void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel)
 {
     drum_voice_t *d;
     float tnorm = 1.0f, dnorm = 1.0f, tonen = 0.6f, lnorm = 0.9f;
+    uint32_t f;
     if (voice >= SF_DRUM_VOICES)
         return;
     if (dsp.cfg && ((dsp.cfg->drum_mute >> voice) & 1u))
@@ -538,12 +565,21 @@ void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel)
         tonen = fm_clampf((float)dsp.cfg->drum_tone[voice] * 0.01f, 0.0f, 1.0f);
         lnorm = fm_clampf((float)dsp.cfg->drum_level[voice] * 0.01f, 0.0f, 1.0f);
     }
+    f = plat_lock();
     d = &dsp.drums[voice];
+    if (d->active) {
+        d->click_s = d->last_s;
+        d->click_rem = 32u;
+    } else {
+        d->click_rem = 0u;
+        d->last_s = 0.0f;
+    }
     d->active = 1u;
     d->ph1 = 0.0f;
     d->ph2 = 0.0f;
     d->env = 1.0f;
     d->pitch_env = 1.0f;
+    d->atk_env = 0.0f;
     d->level = ((float)vel * (1.0f / 127.0f)) * lnorm;
     d->tune = tnorm;
     d->decay = dnorm;
@@ -551,6 +587,7 @@ void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel)
     d->bp.ic1 = d->bp.ic2 = 0.0f;
     dsp.vis.last_drum_idx = voice;
     dsp.vis.drum_trig_seq++;
+    plat_unlock(f);
 }
 
 int32_t sf_dsp_last_note(void) { return dsp.last_note; }
@@ -559,7 +596,10 @@ uint32_t sf_dsp_active_voices(void)
 {
     uint32_t i, cnt = 0u;
     for (i = 0; i < SF_MAX_VOICES; i++)
-        if (dsp.voices[i].active)
+        if (dsp.voices[i].active && (dsp.voices[i].gate || dsp.voices[i].amp_env > 0.015f))
+            cnt++;
+    for (i = 0; i < SF_DRUM_VOICES; i++)
+        if (dsp.drums[i].active && dsp.drums[i].env > 0.015f)
             cnt++;
     return cnt;
 }
@@ -683,7 +723,14 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
             else if (bus == SF_BUS_SPARK && v >= 1u)
                 s *= 1.15f;
 
-            s *= dg_lvl;
+            d->atk_env += 0.045f;
+            if (d->atk_env > 1.0f) d->atk_env = 1.0f;
+            s *= dg_lvl * d->atk_env;
+            if (d->click_rem > 0u) {
+                s += d->click_s * ((float)d->click_rem * (1.0f / 32.0f));
+                d->click_rem--;
+            }
+            d->last_s = s;
             out_l[i] += s * pl_g;
             out_r[i] += s * pr_g;
             if (rev_send && v > 0u)
@@ -692,7 +739,7 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
             d->env *= dec_amp;
             d->pitch_env *= dec_p;
         }
-        if (d->env < 0.001f)
+        if (d->env < 0.001f && d->click_rem == 0u)
             d->active = 0u;
     }
 }
@@ -853,7 +900,9 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         svf_prep(&c1, g1, k1, f1_type);
         svf_prep(&c2, g2, k2, f2_type);
 
-        float vel_g = (0.35f + 0.65f * ((float)vc->vel * (1.0f / 127.0f))) * 0.22f * trem;
+        float vel_g = (0.35f + 0.65f * ((float)vc->vel * (1.0f / 127.0f))) * 0.26f * trem;
+        if (vc->vel_g_cur < 0.0f)
+            vc->vel_g_cur = vel_g;
         float vpan = sf_clamp((((float)(v & 3u) - 1.5f) * 0.22f * spread * uni_pan_norm) + mod_pan * 0.5f, -0.82f, 0.82f);
         float pan_l = 0.707f * (1.0f - vpan);
         float pan_r = 0.707f * (1.0f + vpan);
@@ -877,9 +926,12 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             } else if (vc->amp_st == ENV_REL) {
                 vc->amp_env -= vc->amp_env * a_rel;
                 if (vc->amp_env < 0.0005f) {
-                    vc->active = 0u;
-                    vc->last_l = vc->last_r = 0.0f;
-                    break;
+                    vc->amp_env = 0.0f;
+                    if (vc->click_rem == 0u) {
+                        vc->active = 0u;
+                        vc->last_l = vc->last_r = 0.0f;
+                        break;
+                    }
                 }
             }
 
@@ -966,27 +1018,33 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             if (routing == SF_ROUTE_SPL) {
                 float fl = svf_tick_c(&vc->f1l, src1, &c1);
                 float fr = svf_tick_c(&vc->f2r, src2, &c2);
-                float w1 = 1.0f - f_bal * 0.5f;
-                float w2 = 0.5f + f_bal * 0.5f;
-                sig_l = (fl * w1 + fr * 0.28f * w2) * pan_l;
-                sig_r = (fl * 0.28f * w1 + fr * w2) * pan_r;
+                float w1 = 1.0f - f_bal * 0.45f;
+                float w2 = 0.55f + f_bal * 0.45f;
+                sig_l = (fl * w1 + fr * 0.45f * w2) * pan_l;
+                sig_r = (fl * 0.45f * w1 + fr * w2) * pan_r;
             } else if (routing == SF_ROUTE_PAR) {
                 float comb = (src1 + src2) * 0.7f;
                 float fl = svf_tick_c(&vc->f1l, comb, &c1);
                 float fr = svf_tick_c(&vc->f2r, comb, &c2);
                 float mixf = fl * (1.0f - f_bal * 0.6f) + fr * (0.4f + f_bal * 0.6f);
-                sig_l = mixf * 0.72f * pan_l;
-                sig_r = mixf * 0.72f * pan_r;
+                sig_l = mixf * 0.84f * pan_l;
+                sig_r = mixf * 0.84f * pan_r;
             } else {
                 float comb = (src1 + src2) * 0.7f;
                 float f1 = svf_tick_c(&vc->f1l, comb, &c1);
-                float f2 = svf_tick_c(&vc->f2l, f1, &c2);
-                float mout = f1 * (1.0f - f_bal) + f2 * f_bal;
-                sig_l = mout * pan_l;
-                sig_r = mout * pan_r;
+                if (f_bal <= 0.01f) {
+                    sig_l = f1 * pan_l;
+                    sig_r = f1 * pan_r;
+                } else {
+                    float f2 = svf_tick_c(&vc->f2l, f1, &c2);
+                    float mout = f1 * (1.0f - f_bal) + f2 * f_bal;
+                    sig_l = mout * pan_l;
+                    sig_r = mout * pan_r;
+                }
             }
 
-            float g = vc->amp_env * vel_g;
+            vc->vel_g_cur += (vel_g - vc->vel_g_cur) * 0.02f;
+            float g = vc->amp_env * vc->vel_g_cur;
             float outl = sig_l * g;
             float outr = sig_r * g;
             if (vc->click_rem > 0u) {
@@ -1012,9 +1070,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float del_fb = sf_clamp((float)p->fx_del_fb * 0.01f, 0.0f, 0.85f);
     float del_mix = sf_clamp((float)p->fx_del_mix * 0.0082f
         + (l1d == SF_LFO_DELAY ? lfo1 * 0.35f : 0.0f) + (l2d == SF_LFO_DELAY ? lfo2 * 0.25f : 0.0f), 0.0f, 0.82f);
-    uint32_t del_tap = 800u + (uint32_t)p->fx_del_time * 152u;
-    if (del_tap >= DEL_LEN - 4u)
-        del_tap = DEL_LEN - 4u;
+    float del_tap_targ = sf_clamp(800.0f + (float)p->fx_del_time * 152.0f, 800.0f, (float)(DEL_LEN - 8u));
     float rev_mix = sf_clamp((float)p->fx_reverb * 0.0072f
         + (l1d == SF_LFO_REVERB ? lfo1 * 0.35f : 0.0f) + (l2d == SF_LFO_REVERB ? lfo2 * 0.25f : 0.0f), 0.0f, 0.78f);
 
@@ -1039,10 +1095,10 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             uint32_t st;
             for (st = 0; st < 4u; st++) {
                 float yl = phas_a * pl + dsp.phas_st[st][0];
-                dsp.phas_st[st][0] = pl - phas_a * yl;
+                dsp.phas_st[st][0] = sf_flush(pl - phas_a * yl);
                 pl = yl;
                 float yr = phas_a * pr + dsp.phas_st[st][1];
-                dsp.phas_st[st][1] = pr - phas_a * yr;
+                dsp.phas_st[st][1] = sf_flush(pr - phas_a * yr);
                 pr = yr;
             }
             xl = xl * (1.0f - phas_mix * 0.45f) + pl * phas_mix * 0.55f;
@@ -1063,10 +1119,24 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         }
         dsp.chor_wr = (dsp.chor_wr + 1u) & (CHOR_LEN - 1u);
 
-        uint32_t rd_l = (dsp.del_wr - del_tap) & (DEL_LEN - 1u);
-        uint32_t rd_r = (dsp.del_wr - ((del_tap * 3u) >> 2)) & (DEL_LEN - 1u);
-        float dl = (float)del_buf[rd_l * 2u] * (1.0f / 8192.0f);
-        float dr = (float)del_buf[rd_r * 2u + 1u] * (1.0f / 8192.0f);
+        dsp.del_tap_cur += (del_tap_targ - dsp.del_tap_cur) * 0.002f;
+        uint32_t tap_l = (uint32_t)dsp.del_tap_cur;
+        float frac_l = dsp.del_tap_cur - (float)tap_l;
+        uint32_t rd_l0 = (dsp.del_wr - tap_l) & (DEL_LEN - 1u);
+        uint32_t rd_l1 = (rd_l0 - 1u) & (DEL_LEN - 1u);
+        float dl0 = (float)del_buf[rd_l0 * 2u];
+        float dl1 = (float)del_buf[rd_l1 * 2u];
+        float dl = (dl0 + (dl1 - dl0) * frac_l) * (1.0f / 8192.0f);
+
+        float tap_rf = dsp.del_tap_cur * 0.75f;
+        uint32_t tap_r = (uint32_t)tap_rf;
+        float frac_r = tap_rf - (float)tap_r;
+        uint32_t rd_r0 = (dsp.del_wr - tap_r) & (DEL_LEN - 1u);
+        uint32_t rd_r1 = (rd_r0 - 1u) & (DEL_LEN - 1u);
+        float dr0 = (float)del_buf[rd_r0 * 2u + 1u];
+        float dr1 = (float)del_buf[rd_r1 * 2u + 1u];
+        float dr = (dr0 + (dr1 - dr0) * frac_r) * (1.0f / 8192.0f);
+
         float wl = sf_clamp(xl + dr * del_fb, -3.5f, 3.5f);
         float wr = sf_clamp(xr + dl * del_fb, -3.5f, 3.5f);
         del_buf[dsp.del_wr * 2u] = (int16_t)(wl * 8192.0f);

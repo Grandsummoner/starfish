@@ -89,26 +89,26 @@ typedef struct {
 
 _Static_assert(sizeof(sf_preset_t) == 64u, "sf_preset_t size must remain 64B");
 
-static inline __attribute__((always_inline)) uint8_t sf_osc_mode(const sf_preset_t *p) { return p->osc_meta & 7u; }
-static inline __attribute__((always_inline)) uint8_t sf_osc_sync(const sf_preset_t *p) { return (p->osc_meta >> 3) & 1u; }
-static inline __attribute__((always_inline)) uint8_t sf_sub_wave(const sf_preset_t *p) { return (p->osc_meta >> 4) & 3u; }
-static inline __attribute__((always_inline)) uint8_t sf_unison(const sf_preset_t *p) { return (p->unison_poly & 7u) + 1u; }
-static inline __attribute__((always_inline)) uint8_t sf_polyphony(const sf_preset_t *p) { return ((p->unison_poly >> 3) & 7u) + 1u; }
+static inline uint8_t sf_osc_mode(const sf_preset_t *p) { return p->osc_meta & 7u; }
+static inline uint8_t sf_osc_sync(const sf_preset_t *p) { return (p->osc_meta >> 3) & 1u; }
+static inline uint8_t sf_sub_wave(const sf_preset_t *p) { return (p->osc_meta >> 4) & 3u; }
+static inline uint8_t sf_unison(const sf_preset_t *p) { return (p->unison_poly & 7u) + 1u; }
+static inline uint8_t sf_polyphony(const sf_preset_t *p) { return ((p->unison_poly >> 3) & 7u) + 1u; }
 
-static inline __attribute__((always_inline)) uint8_t sf_f1_type(const sf_preset_t *p) { return p->f2_type_route & 3u; }
-static inline __attribute__((always_inline)) uint8_t sf_f2_type(const sf_preset_t *p) { return (p->f2_type_route >> 2) & 3u; }
-static inline __attribute__((always_inline)) uint8_t sf_f_route(const sf_preset_t *p) { return (p->f2_type_route >> 4) & 3u; }
-static inline __attribute__((always_inline)) uint8_t sf_sat_mode(const sf_preset_t *p) { return (p->f2_type_route >> 6) & 3u; }
+static inline uint8_t sf_f1_type(const sf_preset_t *p) { return p->f2_type_route & 3u; }
+static inline uint8_t sf_f2_type(const sf_preset_t *p) { return (p->f2_type_route >> 2) & 3u; }
+static inline uint8_t sf_f_route(const sf_preset_t *p) { return (p->f2_type_route >> 4) & 3u; }
+static inline uint8_t sf_sat_mode(const sf_preset_t *p) { return (p->f2_type_route >> 6) & 3u; }
 
-static inline __attribute__((always_inline)) uint8_t sf_lfo1_dest(const sf_preset_t *p) { return p->lfo1_meta & 15u; }
-static inline __attribute__((always_inline)) uint8_t sf_lfo1_shape(const sf_preset_t *p) { return (p->lfo1_meta >> 4) & 3u; }
-static inline __attribute__((always_inline)) uint8_t sf_lfo2_dest(const sf_preset_t *p) { return p->lfo2_meta & 15u; }
-static inline __attribute__((always_inline)) uint8_t sf_lfo2_shape(const sf_preset_t *p) { return (p->lfo2_meta >> 4) & 3u; }
+static inline uint8_t sf_lfo1_dest(const sf_preset_t *p) { return p->lfo1_meta & 15u; }
+static inline uint8_t sf_lfo1_shape(const sf_preset_t *p) { return (p->lfo1_meta >> 4) & 3u; }
+static inline uint8_t sf_lfo2_dest(const sf_preset_t *p) { return p->lfo2_meta & 15u; }
+static inline uint8_t sf_lfo2_shape(const sf_preset_t *p) { return (p->lfo2_meta >> 4) & 3u; }
 
-static inline __attribute__((always_inline)) uint8_t sf_arp_mode(const sf_preset_t *p) { return p->arp_meta & 3u; }
-static inline __attribute__((always_inline)) uint8_t sf_arp_rate(const sf_preset_t *p) { return (p->arp_meta >> 2) & 3u; }
-static inline __attribute__((always_inline)) uint8_t sf_arp_octs(const sf_preset_t *p) { return ((p->arp_meta >> 4) & 3u) + 1u; }
-static inline __attribute__((always_inline)) uint8_t sf_arp_latch(const sf_preset_t *p) { return (p->arp_meta >> 6) & 1u; }
-static inline __attribute__((always_inline)) uint8_t sf_arp_on(const sf_preset_t *p) { return (p->arp_meta >> 7) & 1u; }
+static inline uint8_t sf_arp_mode(const sf_preset_t *p) { return p->arp_meta & 3u; }
+static inline uint8_t sf_arp_rate(const sf_preset_t *p) { return (p->arp_meta >> 2) & 3u; }
+static inline uint8_t sf_arp_octs(const sf_preset_t *p) { return ((p->arp_meta >> 4) & 3u) + 1u; }
+static inline uint8_t sf_arp_latch(const sf_preset_t *p) { return (p->arp_meta >> 6) & 1u; }
+static inline uint8_t sf_arp_on(const sf_preset_t *p) { return (p->arp_meta >> 7) & 1u; }
 
 #endif
