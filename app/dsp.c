@@ -552,6 +552,11 @@ void sf_dsp_aftertouch(uint8_t note, uint8_t prs)
 
 void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel)
 {
+    static const float TUNE_LUT[25] = {
+        0.50000f, 0.52973f, 0.56123f, 0.59460f, 0.62996f, 0.66742f, 0.70711f, 0.74915f,
+        0.79370f, 0.84090f, 0.89090f, 0.94387f, 1.00000f, 1.05946f, 1.12246f, 1.18921f,
+        1.25992f, 1.33484f, 1.41421f, 1.49831f, 1.58740f, 1.68179f, 1.78180f, 1.88775f, 2.00000f
+    };
     drum_voice_t *d;
     float tnorm = 1.0f, dnorm = 1.0f, tonen = 0.6f, lnorm = 0.9f;
     uint32_t f;
@@ -560,10 +565,13 @@ void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel)
     if (dsp.cfg && ((dsp.cfg->drum_mute >> voice) & 1u))
         return;
     if (dsp.cfg) {
-        tnorm = fm_exp2f((float)dsp.cfg->drum_tune[voice] * (1.0f / 12.0f));
-        dnorm = fm_clampf((float)dsp.cfg->drum_decay[voice] * 0.01f, 0.25f, 2.0f);
-        tonen = fm_clampf((float)dsp.cfg->drum_tone[voice] * 0.01f, 0.0f, 1.0f);
-        lnorm = fm_clampf((float)dsp.cfg->drum_level[voice] * 0.01f, 0.0f, 1.0f);
+        int32_t ti = (int32_t)dsp.cfg->drum_tune[voice] + 12;
+        if (ti < 0) ti = 0;
+        if (ti > 24) ti = 24;
+        tnorm = TUNE_LUT[ti];
+        dnorm = sf_clamp((float)dsp.cfg->drum_decay[voice] * 0.01f, 0.25f, 2.0f);
+        tonen = sf_clamp((float)dsp.cfg->drum_tone[voice] * 0.01f, 0.0f, 1.0f);
+        lnorm = sf_clamp((float)dsp.cfg->drum_level[voice] * 0.01f, 0.0f, 1.0f);
     }
     f = plat_lock();
     d = &dsp.drums[voice];
@@ -631,17 +639,20 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
     uint32_t v, i;
     uint8_t kit = dsp.cfg ? dsp.cfg->drum_kit : 0u;
     uint8_t bus = dsp.cfg ? dsp.cfg->drum_bus : 0u;
-    float drum_gain = dsp.cfg ? ((float)dsp.cfg->drum_vol * 0.01f) * 0.58f : 0.45f;
-    static const float KIT_BASE_KICK[SF_DRUM_KITS] = {
-        46.0f, 54.0f, 62.0f, 52.0f, 56.0f, 50.0f, 60.0f, 48.0f, 49.0f, 43.0f
-    };
-    static const float KIT_CRISP[SF_DRUM_KITS] = {
-        0.92f, 1.32f, 0.85f, 1.18f, 1.25f, 1.12f, 0.95f, 1.55f, 0.78f, 1.22f
-    };
+    float drum_gain = dsp.cfg ? ((float)dsp.cfg->drum_vol * 0.01f) * 0.60f : 0.48f;
+    /* Distinct 10-Kit Character Tables:
+       0:808, 1:909, 2:CR78, 3:LINN, 4:ELECTRO, 5:HOUSE, 6:JAZZ, 7:DX_FM, 8:LOFI, 9:TRAP */
+    static const float K_END[SF_DRUM_KITS]   = {41.0f, 54.0f, 58.0f, 50.0f, 42.0f, 49.0f, 60.0f, 46.0f, 44.0f, 34.0f};
+    static const float K_SWEEP[SF_DRUM_KITS] = {86.0f, 178.0f, 48.0f, 128.0f, 260.0f, 125.0f, 52.0f, 165.0f, 76.0f, 118.0f};
+    static const float K_DEC[SF_DRUM_KITS]   = {0.00010f, 0.00022f, 0.00042f, 0.00026f, 0.00020f, 0.00021f, 0.00028f, 0.00019f, 0.00024f, 0.000075f};
+    static const float K_PDEC[SF_DRUM_KITS]  = {0.0042f, 0.0038f, 0.0050f, 0.0036f, 0.0024f, 0.0034f, 0.0045f, 0.0030f, 0.0035f, 0.0039f};
+    static const float S_TONE[SF_DRUM_KITS]  = {178.0f, 205.0f, 210.0f, 188.0f, 285.0f, 224.0f, 198.0f, 255.0f, 166.0f, 248.0f};
+    static const float S_NMIX[SF_DRUM_KITS]  = {0.50f, 0.85f, 0.72f, 0.92f, 0.80f, 0.78f, 0.76f, 0.56f, 0.62f, 0.88f};
+    static const float H_HZ[SF_DRUM_KITS]    = {7200.0f, 9600.0f, 5600.0f, 8400.0f, 10200.0f, 9200.0f, 5900.0f, 7600.0f, 4100.0f, 11200.0f};
+    static const float C_HZ[SF_DRUM_KITS]    = {1180.0f, 1760.0f, 2250.0f, 1380.0f, 2020.0f, 1620.0f, 1150.0f, 2150.0f, 980.0f, 1860.0f};
+
     if (kit >= SF_DRUM_KITS) kit = 0u;
-    float kbase = KIT_BASE_KICK[kit];
-    float crisp = KIT_CRISP[kit];
-    float room_amt = (bus == SF_BUS_ROOM) ? 0.36f : 0.06f;
+    float room_amt = (bus == SF_BUS_ROOM) ? 0.36f : (kit == 6u ? 0.14f : 0.06f);
 
     for (v = 0; v < SF_DRUM_VOICES; v++) {
         drum_voice_t *d = &dsp.drums[v];
@@ -649,29 +660,34 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
         svf_c_t dc;
         if (!d->active)
             continue;
-        dec_amp = (v == 0u) ? (1.0f - ((kit == 0u || kit == 9u) ? 0.00012f : 0.00019f) / d->decay)
-                : (v == 1u) ? (1.0f - 0.00045f / d->decay)
-                : (v == 2u) ? (1.0f - 0.0022f / d->decay)
-                : (v == 3u) ? (1.0f - 0.00038f / d->decay)
-                : (v == 4u) ? (1.0f - 0.00052f / d->decay)
-                : (v == 5u) ? (1.0f - 0.00042f / d->decay)
-                : (v == 6u) ? (1.0f - 0.00022f / d->decay)
+        dec_amp = (v == 0u) ? (1.0f - K_DEC[kit] / d->decay)
+                : (v == 1u) ? (1.0f - ((kit == 2u) ? 0.00078f : (kit == 9u) ? 0.00058f : (kit == 6u) ? 0.00034f : 0.00046f) / d->decay)
+                : (v == 2u) ? (1.0f - ((kit == 9u) ? 0.0032f : (kit == 2u) ? 0.0028f : (kit == 6u) ? 0.0017f : 0.0022f) / d->decay)
+                : (v == 3u) ? (1.0f - ((kit == 6u) ? 0.00028f : (kit == 2u) ? 0.00052f : 0.00038f) / d->decay)
+                : (v == 4u) ? (1.0f - ((kit == 2u) ? 0.00072f : 0.00050f) / d->decay)
+                : (v == 5u) ? (1.0f - ((kit == 2u) ? 0.00068f : 0.00042f) / d->decay)
+                : (v == 6u) ? (1.0f - ((kit == 6u) ? 0.00014f : 0.00024f) / d->decay)
                 : (1.0f - 0.0024f / d->decay);
-        dec_p = 1.0f - 0.0026f;
+        dec_p = (v == 0u) ? (1.0f - K_PDEC[kit]) : (1.0f - 0.0026f);
         tone_scale = 0.55f + d->tone * 0.9f;
         dg_lvl = d->level * drum_gain;
 
-        /* Precompute drum filter coefficients once per block */
         dc.a1 = 0.0f; dc.a2 = 0.0f; dc.a3 = 0.0f; dc.k = 0.5f; dc.type = SF_FLT_HP;
-        if (v == 2u || v == 3u) {
-            float f = ((v == 2u ? 6800.0f : 6100.0f) * tone_scale) * d->tune;
-            svf_prep(&dc, sf_clamp(3.14159f * f * INV_SR, 0.02f, 0.85f), 0.45f, SF_FLT_HP);
+        if (v == 1u) {
+            float cut = (kit == 0u) ? 1650.0f : (kit == 8u) ? 1400.0f : (kit == 1u || kit == 9u) ? 2800.0f : 2100.0f;
+            uint8_t ft = (kit == 8u) ? SF_FLT_LP : (kit == 6u ? SF_FLT_HP : SF_FLT_BP);
+            svf_prep(&dc, sf_clamp(3.14159f * cut * tone_scale * INV_SR, 0.02f, 0.85f), (kit == 2u) ? 0.34f : 0.72f, ft);
+        } else if (v == 2u || v == 3u) {
+            float f = H_HZ[kit] * (v == 2u ? 1.0f : 0.86f) * tone_scale * d->tune;
+            uint8_t ft = (kit == 8u) ? SF_FLT_LP : (kit == 0u || kit == 4u) ? SF_FLT_BP : SF_FLT_HP;
+            svf_prep(&dc, sf_clamp(3.14159f * f * INV_SR, 0.02f, 0.88f), (kit == 0u) ? 0.36f : 0.55f, ft);
         } else if (v == 4u) {
-            float g = sf_clamp(3.14159f * (1350.0f + d->tone * 900.0f) * d->tune * INV_SR, 0.02f, 0.7f);
-            svf_prep(&dc, g, 0.52f, SF_FLT_BP);
+            float g = sf_clamp(3.14159f * C_HZ[kit] * (0.75f + d->tone * 0.5f) * d->tune * INV_SR, 0.02f, 0.72f);
+            svf_prep(&dc, g, (kit == 2u) ? 0.32f : 0.56f, SF_FLT_BP);
         } else if (v == 6u) {
-            float g = sf_clamp(3.14159f * (4800.0f + d->tone * 1800.0f) * d->tune * INV_SR, 0.02f, 0.85f);
-            svf_prep(&dc, g, 0.4f, SF_FLT_HP);
+            float rf = (kit == 8u) ? 2600.0f : (kit == 6u) ? 3100.0f : 4800.0f;
+            float g = sf_clamp(3.14159f * (rf + d->tone * 1600.0f) * d->tune * INV_SR, 0.02f, 0.85f);
+            svf_prep(&dc, g, 0.42f, (kit == 8u) ? SF_FLT_LP : SF_FLT_HP);
         }
 
         float pan = (v == 2u) ? -0.18f : (v == 3u) ? 0.18f : (v == 4u) ? -0.12f : (v == 5u) ? 0.22f : (v == 6u) ? 0.28f : (v == 7u) ? -0.25f : 0.0f;
@@ -681,41 +697,90 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
             float s = 0.0f;
             float nse = fast_noise();
             if (v == 0u) {
-                float sub_b = (bus == SF_BUS_SUB) ? 1.25f : 1.0f;
-                float hz = (kbase + 148.0f * d->pitch_env * crisp * tone_scale) * d->tune;
+                float sub_b = (bus == SF_BUS_SUB) ? 1.24f : 1.0f;
+                float hz = (K_END[kit] + K_SWEEP[kit] * d->pitch_env * d->pitch_env * tone_scale) * d->tune;
                 d->ph1 = fast_wrap01(d->ph1 + hz * INV_SR);
-                s = sf_ram_sin_turns(d->ph1) * d->env * 1.15f * sub_b;
-                if (kit == 1u || kit == 4u || kit == 9u || bus == SF_BUS_WARM)
-                    s = sf_soft_clip(s * 1.35f);
+                if (kit == 7u) {
+                    /* DX7 2-Op FM Kick: sharp woody mod carrier */
+                    d->ph2 = fast_wrap01(d->ph2 + (hz * 1.414f) * INV_SR);
+                    s = sf_ram_sin_turns(d->ph1 + 0.42f * d->pitch_env * sf_ram_sin_turns(d->ph2)) * d->env * 1.12f;
+                } else {
+                    s = sf_ram_sin_turns(d->ph1) * d->env * 1.15f * sub_b;
+                    /* 909 / Linn / Electro transient beater snap */
+                    if ((kit == 1u || kit == 3u || kit == 4u) && d->pitch_env > 0.72f) {
+                        s += (nse * 0.22f + sf_ram_sin_turns(fast_wrap01(d->ph1 * 4.5f)) * 0.28f) * (d->pitch_env - 0.72f) * 3.0f;
+                    }
+                    /* 808 / 909 / Trap analog punch & sub harmonics */
+                    if (kit == 1u || kit == 4u || kit == 9u || bus == SF_BUS_WARM)
+                        s = sf_soft_clip(s * (kit == 9u ? 1.55f : 1.35f));
+                }
             } else if (v == 1u) {
-                float hz = (175.0f + 115.0f * d->pitch_env) * d->tune;
+                float hz = (S_TONE[kit] + (kit == 4u ? 190.0f : 105.0f) * d->pitch_env) * d->tune;
                 d->ph1 = fast_wrap01(d->ph1 + hz * INV_SR);
-                s = (sf_ram_sin_turns(d->ph1) * 0.48f + nse * 0.65f * crisp * tone_scale) * d->env;
+                if (kit == 7u) {
+                    /* Metallic FM Snare */
+                    d->ph2 = fast_wrap01(d->ph2 + (hz * 1.618f) * INV_SR);
+                    float fm = sf_ram_sin_turns(d->ph1 + 0.55f * sf_ram_sin_turns(d->ph2));
+                    s = (fm * 0.52f + svf_tick_c(&d->bp, nse, &dc) * S_NMIX[kit]) * d->env;
+                } else {
+                    float body = sf_ram_sin_turns(d->ph1) * ((kit == 2u) ? 0.22f : (kit == 9u) ? 0.58f : 0.45f);
+                    float wire = svf_tick_c(&d->bp, nse, &dc) * S_NMIX[kit] * tone_scale;
+                    /* LinnDrum iconic 80s gated snare plateau */
+                    float gate_e = (kit == 3u && d->env > 0.36f) ? 0.92f : d->env;
+                    s = (body * d->env + wire * gate_e);
+                }
             } else if (v == 2u || v == 3u) {
-                d->ph1 = fast_wrap01(d->ph1 + (330.0f * d->tune) * INV_SR);
-                d->ph2 = fast_wrap01(d->ph2 + (540.0f * d->tune) * INV_SR);
-                float sq = ((d->ph1 < 0.5f ? 1.0f : -1.0f) + (d->ph2 < 0.5f ? 1.0f : -1.0f)) * 0.5f;
-                s = svf_tick_c(&d->bp, nse * 0.82f + sq * 0.35f, &dc) * d->env * 0.62f;
+                if (kit == 0u || kit == 2u || kit == 4u || kit == 7u) {
+                    /* True 6-square metallic ratio emulation (808/CR-78/Electro/DX hats) */
+                    float f1 = (kit == 0u ? 304.0f : kit == 2u ? 498.0f : kit == 7u ? 412.0f : 368.0f) * d->tune;
+                    float f2 = (kit == 0u ? 522.0f : kit == 2u ? 734.0f : kit == 7u ? 583.0f : 612.0f) * d->tune;
+                    d->ph1 = fast_wrap01(d->ph1 + f1 * INV_SR);
+                    d->ph2 = fast_wrap01(d->ph2 + f2 * INV_SR);
+                    float metal = ((d->ph1 < 0.5f ? 1.0f : -1.0f) * (d->ph2 < 0.5f ? 1.0f : -1.0f));
+                    float nmix = (kit == 0u || kit == 2u) ? 0.42f : 0.55f;
+                    s = svf_tick_c(&d->bp, nse * nmix + metal * 0.65f, &dc) * d->env * 0.68f;
+                } else {
+                    /* 909 / Linn / House / Jazz / LoFi / Trap filtered noise hats */
+                    s = svf_tick_c(&d->bp, nse, &dc) * d->env * ((kit == 1u || kit == 9u) ? 0.78f : 0.62f);
+                }
             } else if (v == 4u) {
-                float burst = d->pitch_env > 0.72f ? ((uint32_t)(d->pitch_env * 40.0f) & 1u ? 1.0f : 0.25f) : 1.0f;
-                s = svf_tick_c(&d->bp, nse, &dc) * d->env * burst * 0.92f;
+                float burst = (kit == 6u) ? 0.65f
+                    : (d->pitch_env > 0.72f ? ((uint32_t)(d->pitch_env * (kit == 2u ? 26.0f : 42.0f)) & 1u ? 1.0f : 0.22f) : 1.0f);
+                s = svf_tick_c(&d->bp, nse, &dc) * d->env * burst * (kit == 6u ? 0.68f : 0.96f);
             } else if (v == 5u) {
-                float hz = (112.0f + 165.0f * d->pitch_env * tone_scale) * d->tune;
+                float t_end = (kit == 2u) ? 215.0f : (kit == 6u) ? 132.0f : (kit == 9u) ? 68.0f : (kit == 3u) ? 98.0f : 105.0f;
+                float t_swp = (kit == 2u) ? 115.0f : (kit == 6u) ? 62.0f : (kit == 3u) ? 195.0f : 145.0f;
+                float hz = (t_end + t_swp * d->pitch_env * tone_scale) * d->tune;
                 d->ph1 = fast_wrap01(d->ph1 + hz * INV_SR);
-                s = sf_ram_sin_turns(d->ph1) * d->env * 0.85f;
+                if (kit == 7u || kit == 4u) {
+                    /* DX7 Log Drum / Electro Synth Tom */
+                    d->ph2 = fast_wrap01(d->ph2 + (hz * 2.0f) * INV_SR);
+                    s = sf_ram_sin_turns(d->ph1 + 0.48f * d->pitch_env * sf_ram_sin_turns(d->ph2)) * d->env * 0.90f;
+                } else {
+                    s = sf_ram_sin_turns(d->ph1) * d->env * 0.88f;
+                }
             } else if (v == 6u) {
-                d->ph1 = fast_wrap01(d->ph1 + (420.0f * d->tune) * INV_SR);
-                d->ph2 = fast_wrap01(d->ph2 + (1170.0f * d->tune) * INV_SR);
-                float fm = sf_ram_sin_turns(d->ph1 + 0.65f * sf_ram_sin_turns(d->ph2));
-                s = svf_tick_c(&d->bp, nse * 0.62f + fm * 0.45f, &dc) * d->env * 0.52f;
+                float r1 = (kit == 0u) ? 540.0f : (kit == 6u) ? 520.0f : (kit == 7u) ? 510.0f : 480.0f;
+                float r2 = (kit == 0u) ? 800.0f : (kit == 6u) ? 815.0f : (kit == 7u) ? 721.0f : 731.0f;
+                d->ph1 = fast_wrap01(d->ph1 + (r1 * d->tune) * INV_SR);
+                d->ph2 = fast_wrap01(d->ph2 + (r2 * d->tune) * INV_SR);
+                float fm = (kit == 0u)
+                    ? (((d->ph1 < 0.5f ? 1.0f : -1.0f) + (d->ph2 < 0.5f ? 1.0f : -1.0f)) * 0.48f)
+                    : sf_ram_sin_turns(d->ph1 + ((kit == 6u) ? 0.38f : 0.72f) * sf_ram_sin_turns(d->ph2));
+                s = svf_tick_c(&d->bp, nse * ((kit == 6u || kit == 1u) ? 0.48f : 0.25f) + fm * 0.62f, &dc) * d->env * 0.56f;
             } else {
-                d->ph1 = fast_wrap01(d->ph1 + (480.0f * d->tune) * INV_SR);
-                d->ph2 = fast_wrap01(d->ph2 + (1680.0f * d->tune) * INV_SR);
-                s = (sf_ram_sin_turns(d->ph1) * 0.55f + sf_ram_sin_turns(d->ph2) * 0.45f * tone_scale) * d->env;
+                float rm1 = (kit == 2u) ? 1580.0f : (kit == 6u) ? 860.0f : (kit == 0u) ? 1710.0f : 460.0f;
+                float rm2 = (kit == 2u) ? 2370.0f : (kit == 6u) ? 1290.0f : (kit == 0u) ? 485.0f : 1660.0f;
+                d->ph1 = fast_wrap01(d->ph1 + (rm1 * d->tune) * INV_SR);
+                d->ph2 = fast_wrap01(d->ph2 + (rm2 * d->tune) * INV_SR);
+                s = (sf_ram_sin_turns(d->ph1) * 0.56f + sf_ram_sin_turns(d->ph2) * 0.44f * tone_scale) * d->env;
             }
 
             if (kit == 8u)
-                s = (float)(int32_t)(s * 14.0f) * (1.0f / 14.0f);
+                s = (float)(int32_t)(s * 12.0f) * (1.0f / 12.0f);
+            else if (kit == 3u)
+                s = (float)(int32_t)(s * 48.0f) * (1.0f / 48.0f);
+
             if (bus == SF_BUS_COMP)
                 s = sf_soft_clip(s * 1.48f) * 0.80f;
             else if (bus == SF_BUS_WARM)
@@ -723,7 +788,7 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
             else if (bus == SF_BUS_SPARK && v >= 1u)
                 s *= 1.15f;
 
-            d->atk_env += 0.045f;
+            d->atk_env += 0.055f;
             if (d->atk_env > 1.0f) d->atk_env = 1.0f;
             s *= dg_lvl * d->atk_env;
             if (d->click_rem > 0u) {
@@ -739,7 +804,7 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
             d->env *= dec_amp;
             d->pitch_env *= dec_p;
         }
-        if (d->env < 0.001f && d->click_rem == 0u)
+        if (d->env < 0.0012f && d->click_rem == 0u)
             d->active = 0u;
     }
 }
@@ -807,6 +872,9 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         block_r[i] = 0.0f;
         drum_rev[i] = 0.0f;
     }
+    uint32_t drum_cnt = 0u;
+    for (v = 0; v < SF_DRUM_VOICES; v++)
+        if (dsp.drums[v].active) drum_cnt++;
     for (v = 0; v < SF_MAX_VOICES; v++)
         if (dsp.voices[v].active) active_cnt++;
 
@@ -874,7 +942,9 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float trem = sf_clamp(1.0f + mod_amp * 0.45f, 0.1f, 1.3f);
     float uni_pan_norm = (float)p->uni_pan * 0.01f;
     float glide_coeff = (p->glide == 0u) ? 1.0f : sf_clamp(1.0f - (float)p->glide * 0.0108f, 0.03f, 0.9f);
-    uint8_t lite_hyper = (active_cnt >= 5u) ? 1u : 0u;
+    /* Adaptive CPU load shedding when polyphonic synth chords + drum machine run together */
+    uint8_t lite_hyper = (active_cnt + (drum_cnt > 0u ? 1u : 0u) >= 4u) ? 1u : 0u;
+    uint8_t skip_blep = (active_cnt >= 5u || (active_cnt >= 3u && drum_cnt >= 2u)) ? 1u : 0u;
 
     for (v = 0; v < SF_MAX_VOICES; v++) {
         va_voice_t *vc = &dsp.voices[v];
@@ -925,7 +995,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 vc->amp_env += (a_sus - vc->amp_env) * a_dec;
             } else if (vc->amp_st == ENV_REL) {
                 vc->amp_env -= vc->amp_env * a_rel;
-                if (vc->amp_env < 0.0005f) {
+                if (vc->amp_env < 0.0018f) {
                     vc->amp_env = 0.0f;
                     if (vc->click_rem == 0u) {
                         vc->active = 0u;
@@ -954,10 +1024,10 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                     vc->phase2 = 0.0f;
             }
             if (osc_mode == SF_OSC_HYPERSAW) {
-                float s0 = 2.0f * vc->phase1 - 1.0f - polyblep(vc->phase1, dt1);
+                float s0 = 2.0f * vc->phase1 - 1.0f - (skip_blep ? 0.0f : polyblep(vc->phase1, dt1));
                 vc->hyper_ph[0] = fast_wrap01(vc->hyper_ph[0] + dth0);
                 vc->hyper_ph[1] = fast_wrap01(vc->hyper_ph[1] + dth1);
-                if (lite_hyper) {
+                if (lite_hyper || (vc->amp_st == ENV_REL && vc->amp_env < 0.025f)) {
                     o1 = (s0 + (2.0f * vc->hyper_ph[0] - 1.0f) + (2.0f * vc->hyper_ph[1] - 1.0f)) * 0.45f;
                 } else {
                     vc->hyper_ph[2] = fast_wrap01(vc->hyper_ph[2] + dth2);
@@ -967,8 +1037,10 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 }
             } else if (osc_mode == SF_OSC_PULSE) {
                 o1 = vc->phase1 < pw ? 1.0f : -1.0f;
-                o1 += polyblep(vc->phase1, dt1);
-                o1 -= polyblep(fast_wrap01(vc->phase1 + (1.0f - pw)), dt1);
+                if (!skip_blep) {
+                    o1 += polyblep(vc->phase1, dt1);
+                    o1 -= polyblep(fast_wrap01(vc->phase1 + (1.0f - pw)), dt1);
+                }
             } else if (osc_mode == SF_OSC_TRI) {
                 o1 = 1.0f - 4.0f * sf_fabs(vc->phase1 - 0.5f);
             } else if (osc_mode == SF_OSC_WT) {
@@ -978,10 +1050,10 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 float saw = 2.0f * vc->phase1 - 1.0f;
                 o1 = s1 * (1.0f - wt_pos) + (s2 * 0.65f + saw * 0.35f) * wt_pos;
             } else {
-                o1 = 2.0f * vc->phase1 - 1.0f - polyblep(vc->phase1, dt1);
+                o1 = 2.0f * vc->phase1 - 1.0f - (skip_blep ? 0.0f : polyblep(vc->phase1, dt1));
             }
 
-            if (unison > 1u && osc_mode != SF_OSC_HYPERSAW) {
+            if (unison > 1u && osc_mode != SF_OSC_HYPERSAW && !skip_blep) {
                 vc->hyper_ph[0] = fast_wrap01(vc->hyper_ph[0] + dtu0);
                 vc->hyper_ph[1] = fast_wrap01(vc->hyper_ph[1] + dtu1);
                 float u_a = (osc_mode == SF_OSC_PULSE) ? (vc->hyper_ph[0] < pw ? 0.65f : -0.65f) : (2.0f * vc->hyper_ph[0] - 1.0f) * 0.65f;
@@ -995,7 +1067,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             else if (osc_mode == SF_OSC_TRI)
                 o2 = 1.0f - 4.0f * sf_fabs(vc->phase2 - 0.5f);
             else
-                o2 = 2.0f * vc->phase2 - 1.0f - polyblep(vc->phase2, dt2);
+                o2 = 2.0f * vc->phase2 - 1.0f - (skip_blep ? 0.0f : polyblep(vc->phase2, dt2));
 
             vc->phase_sub = fast_wrap01(vc->phase_sub + dt_sub);
             sub = (sub_wave == 1u) ? sf_ram_sin_turns(vc->phase_sub)
@@ -1079,6 +1151,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float chor_m = sf_ram_sin_turns(dsp.chor_ph);
     uint8_t do_phas = (phas_mix > 0.02f) ? 1u : 0u;
     uint8_t do_chor = (chor_mix > 0.02f) ? 1u : 0u;
+    uint8_t do_del = (del_mix > 0.01f) ? 1u : 0u;
     uint8_t do_rev = (rev_mix > 0.02f || cfg->drum_bus == SF_BUS_ROOM) ? 1u : 0u;
     float sum_sq = 0.0f;
 
@@ -1119,31 +1192,37 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         }
         dsp.chor_wr = (dsp.chor_wr + 1u) & (CHOR_LEN - 1u);
 
-        dsp.del_tap_cur += (del_tap_targ - dsp.del_tap_cur) * 0.002f;
-        uint32_t tap_l = (uint32_t)dsp.del_tap_cur;
-        float frac_l = dsp.del_tap_cur - (float)tap_l;
-        uint32_t rd_l0 = (dsp.del_wr - tap_l) & (DEL_LEN - 1u);
-        uint32_t rd_l1 = (rd_l0 - 1u) & (DEL_LEN - 1u);
-        float dl0 = (float)del_buf[rd_l0 * 2u];
-        float dl1 = (float)del_buf[rd_l1 * 2u];
-        float dl = (dl0 + (dl1 - dl0) * frac_l) * (1.0f / 8192.0f);
+        if (do_del) {
+            dsp.del_tap_cur += (del_tap_targ - dsp.del_tap_cur) * 0.002f;
+            uint32_t tap_l = (uint32_t)dsp.del_tap_cur;
+            float frac_l = dsp.del_tap_cur - (float)tap_l;
+            uint32_t rd_l0 = (dsp.del_wr - tap_l) & (DEL_LEN - 1u);
+            uint32_t rd_l1 = (rd_l0 - 1u) & (DEL_LEN - 1u);
+            float dl0 = (float)del_buf[rd_l0 * 2u];
+            float dl1 = (float)del_buf[rd_l1 * 2u];
+            float dl = (dl0 + (dl1 - dl0) * frac_l) * (1.0f / 8192.0f);
 
-        float tap_rf = dsp.del_tap_cur * 0.75f;
-        uint32_t tap_r = (uint32_t)tap_rf;
-        float frac_r = tap_rf - (float)tap_r;
-        uint32_t rd_r0 = (dsp.del_wr - tap_r) & (DEL_LEN - 1u);
-        uint32_t rd_r1 = (rd_r0 - 1u) & (DEL_LEN - 1u);
-        float dr0 = (float)del_buf[rd_r0 * 2u + 1u];
-        float dr1 = (float)del_buf[rd_r1 * 2u + 1u];
-        float dr = (dr0 + (dr1 - dr0) * frac_r) * (1.0f / 8192.0f);
+            float tap_rf = dsp.del_tap_cur * 0.75f;
+            uint32_t tap_r = (uint32_t)tap_rf;
+            float frac_r = tap_rf - (float)tap_r;
+            uint32_t rd_r0 = (dsp.del_wr - tap_r) & (DEL_LEN - 1u);
+            uint32_t rd_r1 = (rd_r0 - 1u) & (DEL_LEN - 1u);
+            float dr0 = (float)del_buf[rd_r0 * 2u + 1u];
+            float dr1 = (float)del_buf[rd_r1 * 2u + 1u];
+            float dr = (dr0 + (dr1 - dr0) * frac_r) * (1.0f / 8192.0f);
 
-        float wl = sf_clamp(xl + dr * del_fb, -3.5f, 3.5f);
-        float wr = sf_clamp(xr + dl * del_fb, -3.5f, 3.5f);
-        del_buf[dsp.del_wr * 2u] = (int16_t)(wl * 8192.0f);
-        del_buf[dsp.del_wr * 2u + 1u] = (int16_t)(wr * 8192.0f);
-        dsp.del_wr = (dsp.del_wr + 1u) & (DEL_LEN - 1u);
-        xl += dl * del_mix;
-        xr += dr * del_mix;
+            float wl = sf_clamp(xl + dr * del_fb, -3.5f, 3.5f);
+            float wr = sf_clamp(xr + dl * del_fb, -3.5f, 3.5f);
+            del_buf[dsp.del_wr * 2u] = (int16_t)(wl * 8192.0f);
+            del_buf[dsp.del_wr * 2u + 1u] = (int16_t)(wr * 8192.0f);
+            dsp.del_wr = (dsp.del_wr + 1u) & (DEL_LEN - 1u);
+            xl += dl * del_mix;
+            xr += dr * del_mix;
+        } else {
+            del_buf[dsp.del_wr * 2u] = 0;
+            del_buf[dsp.del_wr * 2u + 1u] = 0;
+            dsp.del_wr = (dsp.del_wr + 1u) & (DEL_LEN - 1u);
+        }
 
         if (do_rev) {
             float mono = ((xl + xr) * 0.5f) * rev_mix + drum_rev[i];
