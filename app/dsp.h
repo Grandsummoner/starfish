@@ -6,6 +6,7 @@
 #define SF_SAMPLE_RATE 44100.0f
 #define SF_MAX_VOICES 8u
 #define SF_SEQ_STEPS 64u
+#define SF_SYNTH_MAX_STEPS 256u
 
 enum {
     SF_ARP_UP = 0, SF_ARP_DN = 1, SF_ARP_UPDN = 2, SF_ARP_RND = 3, SF_NARP_MODE = 4
@@ -41,7 +42,7 @@ typedef struct {
     sf_preset_t patch;
     uint16_t bpm;              /* 40..240 */
     uint8_t swing;             /* 50..75 (%) */
-    uint8_t seq_length;        /* 1..64 */
+    uint16_t seq_length;       /* 1..256 */
     uint8_t drum_kit;          /* 0..9 */
     uint8_t drum_vol;          /* 0..100 */
     uint8_t drum_bus;          /* 0..5 */

@@ -288,6 +288,10 @@ static struct {
     uint32_t rev_ai[2];
     float master_now;
     float del_tap_cur;
+    float del_lp_l, del_lp_r;
+    float rev_clp[4];
+    uint32_t del_clr_rem;
+    uint8_t rev_cleared;
     uint8_t jingle_active;
     uint8_t jingle_idx;
     uint8_t jingle_step;
@@ -309,6 +313,11 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     dsp.voice_age = 1u;
     dsp.master_now = 0.0f;
     dsp.del_tap_cur = 4000.0f;
+    dsp.del_lp_l = 0.0f;
+    dsp.del_lp_r = 0.0f;
+    dsp.rev_clp[0] = dsp.rev_clp[1] = dsp.rev_clp[2] = dsp.rev_clp[3] = 0.0f;
+    dsp.del_clr_rem = 0u;
+    dsp.rev_cleared = 1u;
     dsp.jingle_active = 0u;
     for (i = 0; i < SF_MAX_VOICES; i++) {
         dsp.voices[i].active = 0u;
@@ -995,7 +1004,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 vc->amp_env += (a_sus - vc->amp_env) * a_dec;
             } else if (vc->amp_st == ENV_REL) {
                 vc->amp_env -= vc->amp_env * a_rel;
-                if (vc->amp_env < 0.0018f) {
+                if (vc->amp_env < 0.0022f) {
                     vc->amp_env = 0.0f;
                     if (vc->click_rem == 0u) {
                         vc->active = 0u;
@@ -1145,6 +1154,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float del_tap_targ = sf_clamp(800.0f + (float)p->fx_del_time * 152.0f, 800.0f, (float)(DEL_LEN - 8u));
     float rev_mix = sf_clamp((float)p->fx_reverb * 0.0072f
         + (l1d == SF_LFO_REVERB ? lfo1 * 0.35f : 0.0f) + (l2d == SF_LFO_REVERB ? lfo2 * 0.25f : 0.0f), 0.0f, 0.78f);
+    float rev_fb = sf_clamp(0.78f + rev_mix * 0.11f, 0.78f, 0.87f);
 
     float phas_a = -0.48f + 0.38f * sf_ram_sin_turns(dsp.phas_ph);
     float phas_inc = phas_hz * INV_SR;
@@ -1155,9 +1165,35 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     uint8_t do_rev = (rev_mix > 0.02f || cfg->drum_bus == SF_BUS_ROOM) ? 1u : 0u;
     float sum_sq = 0.0f;
 
+    if (!do_del && dsp.del_clr_rem > 0u) {
+        uint32_t zi, chunk = n < dsp.del_clr_rem ? n : dsp.del_clr_rem;
+        for (zi = 0u; zi < chunk; zi++) {
+            del_buf[dsp.del_wr * 2u] = 0;
+            del_buf[dsp.del_wr * 2u + 1u] = 0;
+            dsp.del_wr = (dsp.del_wr + 1u) & (DEL_LEN - 1u);
+        }
+        dsp.del_clr_rem -= chunk;
+        if (dsp.del_clr_rem == 0u) {
+            dsp.del_lp_l = 0.0f;
+            dsp.del_lp_r = 0.0f;
+        }
+    }
+    if (!do_rev && !dsp.rev_cleared) {
+        uint32_t ri;
+        for (ri = 0u; ri < REV_C0; ri++) rev_c0[ri] = 0;
+        for (ri = 0u; ri < REV_C1; ri++) rev_c1[ri] = 0;
+        for (ri = 0u; ri < REV_C2; ri++) rev_c2[ri] = 0;
+        for (ri = 0u; ri < REV_C3; ri++) rev_c3[ri] = 0;
+        for (ri = 0u; ri < REV_A0; ri++) rev_a0[ri] = 0;
+        for (ri = 0u; ri < REV_A1; ri++) rev_a1[ri] = 0;
+        dsp.rev_clp[0] = dsp.rev_clp[1] = dsp.rev_clp[2] = dsp.rev_clp[3] = 0.0f;
+        dsp.rev_cleared = 1u;
+    }
+
     for (i = 0; i < n; i++) {
         float xl = block_l[i];
         float xr = block_r[i];
+        float del_rev_feed = 0.0f;
 
         if (do_phas) {
             if ((i & 7u) == 0u) {
@@ -1193,6 +1229,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         dsp.chor_wr = (dsp.chor_wr + 1u) & (CHOR_LEN - 1u);
 
         if (do_del) {
+            dsp.del_clr_rem = DEL_LEN;
             dsp.del_tap_cur += (del_tap_targ - dsp.del_tap_cur) * 0.002f;
             uint32_t tap_l = (uint32_t)dsp.del_tap_cur;
             float frac_l = dsp.del_tap_cur - (float)tap_l;
@@ -1211,29 +1248,33 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             float dr1 = (float)del_buf[rd_r1 * 2u + 1u];
             float dr = (dr0 + (dr1 - dr0) * frac_r) * (1.0f / 8192.0f);
 
-            float wl = sf_clamp(xl + dr * del_fb, -3.5f, 3.5f);
-            float wr = sf_clamp(xr + dl * del_fb, -3.5f, 3.5f);
+            dsp.del_lp_l = sf_flush(dsp.del_lp_l + (dr * del_fb - dsp.del_lp_l) * 0.34f);
+            dsp.del_lp_r = sf_flush(dsp.del_lp_r + (dl * del_fb - dsp.del_lp_r) * 0.34f);
+            float wl = sf_clamp(sf_soft_clip((xl + dsp.del_lp_l) * 0.92f) * 1.08f, -3.5f, 3.5f);
+            float wr = sf_clamp(sf_soft_clip((xr + dsp.del_lp_r) * 0.92f) * 1.08f, -3.5f, 3.5f);
             del_buf[dsp.del_wr * 2u] = (int16_t)(wl * 8192.0f);
             del_buf[dsp.del_wr * 2u + 1u] = (int16_t)(wr * 8192.0f);
             dsp.del_wr = (dsp.del_wr + 1u) & (DEL_LEN - 1u);
             xl += dl * del_mix;
             xr += dr * del_mix;
-        } else {
-            del_buf[dsp.del_wr * 2u] = 0;
-            del_buf[dsp.del_wr * 2u + 1u] = 0;
-            dsp.del_wr = (dsp.del_wr + 1u) & (DEL_LEN - 1u);
+            del_rev_feed = (dl + dr) * del_mix * 0.22f;
         }
 
         if (do_rev) {
-            float mono = ((xl + xr) * 0.5f) * rev_mix + drum_rev[i];
+            dsp.rev_cleared = 0u;
+            float mono = ((xl + xr) * 0.5f + del_rev_feed) * rev_mix + drum_rev[i];
             float c0 = (float)rev_c0[dsp.rev_ci[0]] * (1.0f / 8192.0f);
             float c1 = (float)rev_c1[dsp.rev_ci[1]] * (1.0f / 8192.0f);
             float c2 = (float)rev_c2[dsp.rev_ci[2]] * (1.0f / 8192.0f);
             float c3 = (float)rev_c3[dsp.rev_ci[3]] * (1.0f / 8192.0f);
-            rev_c0[dsp.rev_ci[0]] = (int16_t)(sf_clamp(mono + c0 * 0.78f, -3.5f, 3.5f) * 8192.0f);
-            rev_c1[dsp.rev_ci[1]] = (int16_t)(sf_clamp(mono + c1 * 0.78f, -3.5f, 3.5f) * 8192.0f);
-            rev_c2[dsp.rev_ci[2]] = (int16_t)(sf_clamp(mono + c2 * 0.78f, -3.5f, 3.5f) * 8192.0f);
-            rev_c3[dsp.rev_ci[3]] = (int16_t)(sf_clamp(mono + c3 * 0.78f, -3.5f, 3.5f) * 8192.0f);
+            dsp.rev_clp[0] = sf_flush(dsp.rev_clp[0] + (c0 - dsp.rev_clp[0]) * 0.38f);
+            dsp.rev_clp[1] = sf_flush(dsp.rev_clp[1] + (c1 - dsp.rev_clp[1]) * 0.38f);
+            dsp.rev_clp[2] = sf_flush(dsp.rev_clp[2] + (c2 - dsp.rev_clp[2]) * 0.38f);
+            dsp.rev_clp[3] = sf_flush(dsp.rev_clp[3] + (c3 - dsp.rev_clp[3]) * 0.38f);
+            rev_c0[dsp.rev_ci[0]] = (int16_t)(sf_clamp(mono + dsp.rev_clp[0] * rev_fb, -3.5f, 3.5f) * 8192.0f);
+            rev_c1[dsp.rev_ci[1]] = (int16_t)(sf_clamp(mono + dsp.rev_clp[1] * rev_fb, -3.5f, 3.5f) * 8192.0f);
+            rev_c2[dsp.rev_ci[2]] = (int16_t)(sf_clamp(mono + dsp.rev_clp[2] * rev_fb, -3.5f, 3.5f) * 8192.0f);
+            rev_c3[dsp.rev_ci[3]] = (int16_t)(sf_clamp(mono + dsp.rev_clp[3] * rev_fb, -3.5f, 3.5f) * 8192.0f);
             if (++dsp.rev_ci[0] >= REV_C0) dsp.rev_ci[0] = 0u;
             if (++dsp.rev_ci[1] >= REV_C1) dsp.rev_ci[1] = 0u;
             if (++dsp.rev_ci[2] >= REV_C2) dsp.rev_ci[2] = 0u;
@@ -1250,8 +1291,8 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             rev_a1[dsp.rev_ai[1]] = (int16_t)(sf_clamp(y0 + a1v * 0.5f, -3.5f, 3.5f) * 8192.0f);
             if (++dsp.rev_ai[1] >= REV_A1) dsp.rev_ai[1] = 0u;
 
-            xl += y1 * 0.85f;
-            xr += y1 * 0.78f;
+            xl += (y1 + (c0 - c1) * 0.16f) * 0.90f;
+            xr += (y1 + (c2 - c3) * 0.16f) * 0.90f;
         }
 
         dsp.master_now += (master_target - dsp.master_now) * 0.005f;

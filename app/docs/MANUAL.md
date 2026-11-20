@@ -1,6 +1,6 @@
 # STARFISH Manual
 
-STARFISH turns the M-VAVE FM-1 into an 8-voice Virus-style VA synth + 8-track drum sequencer with 1,056 built-in presets across Banks A-I and 32 flash user slots in Bank X.
+STARFISH turns the M-VAVE FM-1 into an 8-voice Starfish VA synth + 8-track drum sequencer with 1,056 built-in presets across Banks A-I and 32 flash user slots in Bank X.
 
 ![STARFISH OLED](img/screen.png "STARFISH OLED")
 
