@@ -442,6 +442,12 @@ static void record_recent_preset(uint8_t bank, uint8_t prog)
     set.recent_presets[0][1] = prog;
 }
 
+static void mark_drum_mix_dirty(uint32_t now)
+{
+    drum_store_dirty = 1u;
+    drum_edit_ms = now;
+}
+
 static void load_preset(uint8_t bank, uint8_t prog)
 {
     uint8_t keep_arp = arp_active;
@@ -735,11 +741,6 @@ static void save_settings_to_store(void)
     }
 }
 
-static void mark_drum_mix_dirty(uint32_t now)
-{
-    drum_store_dirty = 1u;
-    drum_edit_ms = now;
-}
 
 static uint8_t quantize_note(int32_t note)
 {
