@@ -86,6 +86,7 @@ void sf_dsp_panic(void);
 void sf_dsp_set_cfg(sf_engine_cfg_t *cfg);
 void sf_dsp_note_on(uint8_t note, uint8_t vel);
 void sf_dsp_note_off(uint8_t note);
+void sf_dsp_all_notes_off(void);
 void sf_dsp_aftertouch(uint8_t note, uint8_t prs);
 void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel);
 void sf_dsp_start_jingle(uint8_t jingle_idx, const sf_preset_t *jingle_patch);

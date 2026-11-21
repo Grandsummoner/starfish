@@ -5,7 +5,7 @@
   "author": "Starfish Project",
   "license": "MPL-2.0",
   "tagline": "8-voice VA synth, 10-kit drum machine, arp and dual LFOs for FM-1",
-  "description": "STARFISH turns the M-VAVE FM-1 into an 8-voice virtual analog synthesizer with dual multimode filters, 10 synthesized drum kits, 16-step sequencer, arpeggiator, chord memory, dual LFO modulation, stereo FX, and 1,056 presets across Banks A-I plus 32 flash user slots in Bank X.",
+  "description": "STARFISH turns the M-VAVE FM-1 into an 8-voice virtual analog synthesizer with dual multimode filters, 10 synthesized drum kits, 64-step drum & 256-event synth sequencer, arpeggiator, chord memory, dual LFO modulation, stereo FX, and 288 curated presets across Banks A-I plus 128 flash user slots in Bank X.",
   "tags": ["synth", "drum-machine", "groovebox", "sequencer"],
   "install": "https://starfish-fm1.github.io/starfish/install/",
   "site": "https://starfish-fm1.github.io/starfish/",
@@ -16,5 +16,5 @@
     "flash": ["856014", "B36014"],
     "features": ["bluetooth-midi", "bluetooth-midi-devices", "usb-audio-in", "usb-audio-out", "velocity", "pressure", "screen-reader", "backup"]
   },
-  "credits": "Includes 1,056 presets across Banks A-I plus 32 Bank X user slots."
+  "credits": "Includes 288 curated presets across Banks A-I plus 128 Bank X user slots."
 }

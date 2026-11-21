@@ -639,6 +639,21 @@ void sf_dsp_note_off(uint8_t note)
     plat_unlock(f);
 }
 
+void sf_dsp_all_notes_off(void)
+{
+    uint32_t i;
+    uint32_t f = plat_lock();
+    for (i = 0; i < SF_MAX_VOICES; i++) {
+        if (dsp.voices[i].active && dsp.voices[i].gate && !dsp.voices[i].is_jingle) {
+            dsp.voices[i].gate = 0u;
+            dsp.voices[i].amp_st = ENV_REL;
+            dsp.voices[i].flt_st = ENV_REL;
+        }
+    }
+    dsp.last_note = -1;
+    plat_unlock(f);
+}
+
 void sf_dsp_aftertouch(uint8_t note, uint8_t prs)
 {
     uint32_t i;

@@ -480,6 +480,7 @@ static void load_preset(uint8_t bank, uint8_t prog)
     static const uint8_t PRESET_ARP_RATE_MAP[4] = {2u, 5u, 7u, 8u};
     uint8_t keep_arp = arp_active;
     uint8_t keep_latch = set.arp_latch;
+    sf_dsp_all_notes_off();
     set.bank = bank % 10u;
     set.prog = (uint8_t)(prog % bank_len(set.bank));
     mem_copy(&set.patch, get_preset_ptr(set.bank, set.prog), (uint32_t)sizeof(sf_preset_t));
@@ -547,14 +548,15 @@ static void make_init_patch(sf_preset_t *p, const char *label)
     p->fx_drive = 15u;
     p->arp_meta = (SF_ARP_UPDN) | (1u << 2) | (0u << 4);
 }
-static void bankx_defaults(void)
+static void bankx_default_chunk(uint32_t ci)
 {
-    uint32_t i;
-    for (i = 0; i < 3u; i++) {
-        mem_zero(&bankx_chunks[i], (uint32_t)sizeof(sf_bankx_chunk_t));
-        bankx_chunks[i].magic = BANKX_MAGIC;
-    }
-    for (i = 0; i < SF_BANK_X_SLOTS; i++) {
+    uint32_t sub;
+    if (ci >= 3u) return;
+    mem_zero(&bankx_chunks[ci], (uint32_t)sizeof(sf_bankx_chunk_t));
+    bankx_chunks[ci].magic = BANKX_MAGIC;
+    for (sub = 0; sub < SF_BANK_X_CHUNK; sub++) {
+        uint32_t i = ci * SF_BANK_X_CHUNK + sub;
+        if (i >= SF_BANK_X_SLOTS) break;
         char lbl[16];
         uint32_t v = i + 1u;
         lbl[0] = 'U'; lbl[1] = 'S'; lbl[2] = 'E'; lbl[3] = 'R'; lbl[4] = ' ';
@@ -562,8 +564,15 @@ static void bankx_defaults(void)
         lbl[6] = (char)('0' + (v / 10u) % 10u);
         lbl[7] = (char)('0' + v % 10u);
         lbl[8] = 0;
-        make_init_patch(bankx_slot_ptr(i), lbl);
+        make_init_patch(&bankx_chunks[ci].slots[sub], lbl);
     }
+}
+
+static void bankx_defaults(void)
+{
+    uint32_t ci;
+    for (ci = 0; ci < 3u; ci++)
+        bankx_default_chunk(ci);
 }
 
 static void expand_drum_bars(uint32_t old_len, uint32_t new_len)
@@ -702,21 +711,18 @@ static void settings_defaults(void)
 
 int starfish_ble_off(void)
 {
-    sf_settings_t tmp;
-    if (plat_store_head(OBJ_SETTINGS, &tmp, (uint32_t)sizeof(tmp)) == (int)sizeof(tmp) && tmp.magic == SET_MAGIC)
-        return (tmp.ble_off || tmp.bt_mode == 3u) ? 1 : 0;
-    return 0;
+    return (set.ble_off || set.bt_mode == 3u) ? 1 : 0;
 }
 
-static void load_all_from_store(void)
+static void load_all_from_store(int allow_ble_start)
 {
     uint32_t i;
     static const uint32_t bx_objs[3] = {OBJ_BANKX0, OBJ_BANKX1, OBJ_BANKX2};
-    bankx_defaults();
     for (i = 0; i < 3u; i++) {
-        sf_bankx_chunk_t tmp;
-        if (plat_store_load(bx_objs[i], &tmp, (uint32_t)sizeof(tmp)) == (int)sizeof(tmp) && tmp.magic == BANKX_MAGIC)
-            mem_copy(&bankx_chunks[i], &tmp, (uint32_t)sizeof(tmp));
+        if (plat_store_load(bx_objs[i], &bankx_chunks[i], (uint32_t)sizeof(bankx_chunks[i])) != (int)sizeof(bankx_chunks[i]) ||
+            bankx_chunks[i].magic != BANKX_MAGIC) {
+            bankx_default_chunk(i);
+        }
     }
     if (plat_store_load(OBJ_SETTINGS, &set, (uint32_t)sizeof(set)) != (int)sizeof(set) || set.magic != SET_MAGIC) {
         settings_defaults();
@@ -772,7 +778,11 @@ static void load_all_from_store(void)
         mem_copy(&patch_baseline, &set.patch, (uint32_t)sizeof(sf_preset_t));
         patch_compare_ab = 0u;
         arp_active = sf_arp_on(&set.patch);
-        plat_ble_enable(set.ble_off ? 0 : 1);
+        /* Never call ble_start() inside app_init(): radio IRQs lock top RAM before audio/USB/timer5 init */
+        if (allow_ble_start)
+            plat_ble_enable(set.ble_off ? 0 : 1);
+        else if (set.ble_off)
+            plat_ble_enable(0);
         sync_engine_cfg();
     }
     target_bankx_slot = bankx_next_free();
@@ -912,6 +922,7 @@ static void save_to_current_slot(void)
 static void revert_to_factory(uint8_t init_mode)
 {
     if (init_mode) {
+        sf_dsp_all_notes_off();
         make_init_patch(&set.patch, "STARFISH INIT");
         unsaved_random = 0u;
         set_dirty = 1u;
@@ -1163,7 +1174,7 @@ void app_init(void)
     for (i = 0; i < SF_MAX_VOICES; i++) { loop_play_active[i] = 0u; loop_play_note[i] = 0u; loop_play_rem_us[i] = 0u; }
     for (i = 0; i < SYNTH_LOOP_MAX; i++) { synth_loop[i].active_src = 0u; synth_loop[i].active_key = 0xFFu; }
     sf_dsp_init(&eng);
-    load_all_from_store();
+    load_all_from_store(0);
 }
 
 void app_splash(void)
@@ -1453,6 +1464,8 @@ static struct {
     int32_t last_prs;
     int32_t last_turns5;
     uint8_t k3_turns;
+    uint8_t cosmic_active;
+    uint32_t cosmic_off_at;
     uint8_t held_chord_cnt[NKEYS];
     uint8_t held_notes[NKEYS][4];
 } ui;
@@ -1551,6 +1564,8 @@ static void show_hud_drumkit(uint32_t now)
     ui.redraw = 1u;
 }
 
+static const uint8_t COSMIC_NOTES[4] = {60u, 64u, 67u, 74u};
+
 static void release_all_keys(void)
 {
     uint32_t k, i;
@@ -1563,6 +1578,15 @@ static void release_all_keys(void)
         ui.held_chord_cnt[k] = 0u;
         arp_held[k] = 0u;
     }
+    if (ui.cosmic_active) {
+        for (i = 0u; i < 4u; i++) sf_dsp_note_off(COSMIC_NOTES[i]);
+        ui.cosmic_active = 0u;
+    }
+    if (arp_cur_note >= 0) {
+        sf_dsp_note_off((uint8_t)arp_cur_note);
+        arp_cur_note = -1;
+    }
+    sf_dsp_all_notes_off();
 }
 
 static void handle_octave_delta(uint32_t now, int32_t d)
@@ -2313,9 +2337,13 @@ static void input(uint32_t now)
         down &= ~((1u << B_GLO) | (1u << B_ARP));
     }
     if ((((b >> B_OCTDN) & 1u) && ((down >> B_OCTUP) & 1u)) || (((b >> B_OCTUP) & 1u) && ((down >> B_OCTDN) & 1u))) {
-        static const uint8_t COSMIC[4] = {60u, 64u, 67u, 74u};
         uint32_t ci;
-        for (ci = 0; ci < 4u; ci++) sf_dsp_note_on(COSMIC[ci], 108u);
+        if (ui.cosmic_active) {
+            for (ci = 0; ci < 4u; ci++) sf_dsp_note_off(COSMIC_NOTES[ci]);
+        }
+        for (ci = 0; ci < 4u; ci++) sf_dsp_note_on(COSMIC_NOTES[ci], 108u);
+        ui.cosmic_active = 1u;
+        ui.cosmic_off_at = now + 650u;
         ui.star_spin_targ += FM_TWO_PI * 2.0f;
         ui.star_happy_until = now + 900u;
         show_hud_badge(now, "COSMIC STAR CHORD!", "C MAJ9 SPARKLE", COL_CYAN, 1100u);
@@ -2635,6 +2663,14 @@ static void input(uint32_t now)
                     if (ui.mute_used) { ui.mute_held = 0u; ui.mute_latched = 0u; ui.mute_used = 0u; }
                     else if (ui.mute_held) { ui.mute_latched = 1u; show_hud_badge(now, "MUTE LATCHED", "", COL_RED, 1300u); }
                 }
+                arp_held[k] = 0u;
+                if (!set.arp_latch) arp_order_remove((uint16_t)(0x0100u | k));
+                for (i = 0; i < ui.held_chord_cnt[k]; i++) {
+                    uint8_t nn = ui.held_notes[k][i];
+                    sf_dsp_note_off(nn);
+                    send_midi_note_off(nn);
+                }
+                ui.held_chord_cnt[k] = 0u;
             } else {
                 uint32_t base_step_us = 15000000u / (uint32_t)(set.bpm < 40u ? 40u : set.bpm);
                 uint32_t len = set.seq_length < 1u ? 1u : (set.seq_length > SF_SYNTH_MAX_STEPS ? SF_SYNTH_MAX_STEPS : set.seq_length);
@@ -4237,6 +4273,11 @@ void app_frame(void)
         while ((ev = btdev_event()) != BTDEV_NONE)
             show_hud_badge(now, btdev_word(ev), btdev_name(), COL_CYAN, 1100u);
     }
+    if (ui.cosmic_active && (int32_t)(now - ui.cosmic_off_at) >= 0) {
+        uint32_t ci;
+        for (ci = 0u; ci < 4u; ci++) sf_dsp_note_off(COSMIC_NOTES[ci]);
+        ui.cosmic_active = 0u;
+    }
     input(now);
     if (drum_store_dirty && !backup_hold && !seq_playing && !rec_armed &&
         ui.conf_type == CONF_NONE && now >= ui.boot_until &&
@@ -4270,7 +4311,7 @@ void app_say(const char *a, const char *b)
 int app_backup_playing(void) { return seq_playing ? 1 : 0; }
 void app_backup_flush(void) { if (set_dirty) save_settings_to_store(); }
 void app_backup_hold(int on) { backup_hold = on ? 1u : 0u; }
-void app_backup_restored(void) { load_all_from_store(); ui.redraw = 1u; }
+void app_backup_restored(void) { load_all_from_store(1); ui.redraw = 1u; }
 
 int app_expect(const char *what, int *got)
 {
