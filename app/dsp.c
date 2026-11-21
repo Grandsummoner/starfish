@@ -65,7 +65,7 @@ static PLAT_RAM_CODE float sf_ram_expf(float x)
     return sf_ram_exp2_nf((int32_t)n, x * FM_LOG2E);
 }
 
-static PLAT_RAM_CODE float sf_ram_sin_turns(float ph)
+static inline __attribute__((always_inline)) float sf_sin_turns_core(float ph)
 {
     float x = (ph - sf_floor(ph + 0.5f)) * FM_TWO_PI;
     float x2 = x * x, p;
@@ -75,6 +75,11 @@ static PLAT_RAM_CODE float sf_ram_sin_turns(float ph)
     p = p * x2 - 0.16666665f;
     p = p * x2 + 0.99999999f;
     return p * x;
+}
+
+static PLAT_RAM_CODE float sf_ram_sin_turns(float ph)
+{
+    return sf_sin_turns_core(ph);
 }
 
 static PLAT_RAM_CODE float sf_ram_sqrtf(float x)
@@ -323,37 +328,37 @@ static void init_wavetable_lut(void)
             float t = (float)s * (1.0f / 64.0f);
             float v = 0.0f;
             if (f == 0u) {
-                v = sf_ram_sin_turns(t);
+                v = sf_sin_turns_core(t);
             } else if (f == 1u) {
-                v = sf_ram_sin_turns(t) + 0.38f * sf_ram_sin_turns(fast_wrap01(t * 3.0f))
-                  + 0.16f * sf_ram_sin_turns(fast_wrap01(t * 5.0f));
+                v = sf_sin_turns_core(t) + 0.38f * sf_sin_turns_core(fast_wrap01(t * 3.0f))
+                  + 0.16f * sf_sin_turns_core(fast_wrap01(t * 5.0f));
             } else if (f == 2u) {
-                v = 0.72f * sf_ram_sin_turns(t) + 0.52f * sf_ram_sin_turns(fast_wrap01(t * 2.0f))
-                  + 0.36f * sf_ram_sin_turns(fast_wrap01(t * 3.0f))
-                  + 0.22f * sf_ram_sin_turns(fast_wrap01(t * 4.0f));
+                v = 0.72f * sf_sin_turns_core(t) + 0.52f * sf_sin_turns_core(fast_wrap01(t * 2.0f))
+                  + 0.36f * sf_sin_turns_core(fast_wrap01(t * 3.0f))
+                  + 0.22f * sf_sin_turns_core(fast_wrap01(t * 4.0f));
             } else if (f == 3u) {
-                v = 0.58f * sf_ram_sin_turns(t) + 0.52f * sf_ram_sin_turns(fast_wrap01(t * 3.0f))
-                  + 0.40f * sf_ram_sin_turns(fast_wrap01(t * 5.0f))
-                  + 0.24f * sf_ram_sin_turns(fast_wrap01(t * 7.0f));
+                v = 0.58f * sf_sin_turns_core(t) + 0.52f * sf_sin_turns_core(fast_wrap01(t * 3.0f))
+                  + 0.40f * sf_sin_turns_core(fast_wrap01(t * 5.0f))
+                  + 0.24f * sf_sin_turns_core(fast_wrap01(t * 7.0f));
             } else if (f == 4u) {
-                v = 0.55f * sf_ram_sin_turns(t) + 0.45f * sf_ram_sin_turns(fast_wrap01(t * 2.0f))
-                  + 0.38f * sf_ram_sin_turns(fast_wrap01(t * 5.0f))
-                  + 0.28f * sf_ram_sin_turns(fast_wrap01(t * 7.0f));
+                v = 0.55f * sf_sin_turns_core(t) + 0.45f * sf_sin_turns_core(fast_wrap01(t * 2.0f))
+                  + 0.38f * sf_sin_turns_core(fast_wrap01(t * 5.0f))
+                  + 0.28f * sf_sin_turns_core(fast_wrap01(t * 7.0f));
             } else if (f == 5u) {
                 float h;
                 uint32_t k;
                 for (k = 1u; k <= 8u; k++) {
                     h = (float)k;
-                    v += sf_ram_sin_turns(fast_wrap01(t * h)) / h;
+                    v += sf_sin_turns_core(fast_wrap01(t * h)) / h;
                 }
             } else if (f == 6u) {
-                v = 0.38f * sf_ram_sin_turns(t) + 0.56f * sf_ram_sin_turns(fast_wrap01(t * 4.0f))
-                  + 0.48f * sf_ram_sin_turns(fast_wrap01(t * 6.0f))
-                  + 0.28f * sf_ram_sin_turns(fast_wrap01(t * 9.0f));
+                v = 0.38f * sf_sin_turns_core(t) + 0.56f * sf_sin_turns_core(fast_wrap01(t * 4.0f))
+                  + 0.48f * sf_sin_turns_core(fast_wrap01(t * 6.0f))
+                  + 0.28f * sf_sin_turns_core(fast_wrap01(t * 9.0f));
             } else {
-                v = 0.35f * sf_ram_sin_turns(t) + 0.42f * sf_ram_sin_turns(fast_wrap01(t * 5.0f))
-                  + 0.38f * sf_ram_sin_turns(fast_wrap01(t * 8.0f))
-                  + 0.32f * sf_ram_sin_turns(fast_wrap01(t * 11.0f));
+                v = 0.35f * sf_sin_turns_core(t) + 0.42f * sf_sin_turns_core(fast_wrap01(t * 5.0f))
+                  + 0.38f * sf_sin_turns_core(fast_wrap01(t * 8.0f))
+                  + 0.32f * sf_sin_turns_core(fast_wrap01(t * 11.0f));
             }
             wt_bank[f][s] = v;
             if (sf_fabs(v) > peak) peak = sf_fabs(v);
