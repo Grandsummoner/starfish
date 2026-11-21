@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 #define SF_ROM_BANKS 9u
-#define SF_ROM_COUNT 1056u
-#define SF_BANK_SIZE 128u
+#define SF_ROM_COUNT 288u
+#define SF_BANK_SIZE 32u
 #define SF_BANK_I_SIZE 32u
 #define SF_BANK_X_SLOTS 128u
 #define SF_BANK_X_CHUNK 43u
@@ -80,7 +80,7 @@ typedef struct {
     uint8_t fx_phaser;      /* 56: 0..100 */
     uint8_t fx_phaser_rate; /* 57: 1..60 (x0.1 Hz -> 0.1..6.0Hz) */
     uint8_t fx_del_mix;     /* 58: 0..100 */
-    uint8_t fx_del_time;    /* 59: 5..100 (x0.01s -> 0.05..1.00s) */
+    uint8_t fx_del_time;    /* 59: 5..100 (0.05..1.00s) or 101..106 (BPM sync) */
     uint8_t fx_del_fb;      /* 60: 0..95 */
     uint8_t fx_reverb;      /* 61: 0..100 */
     uint8_t fx_drive;       /* 62: 0..100 */

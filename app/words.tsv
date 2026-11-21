@@ -17,3 +17,11 @@ DRUM DEC	drum decay
 RND STYLE	randomizer style
 UNSAVED RANDOM	unsaved random patch
 OCT+ SAVE	press octave plus to save
+SYNTH LVL	synth level
+KICK DUCK	kick sidechain ducking
+SYNTH CH	MIDI synth channel
+DRUM CH	MIDI drum channel
+BT MODE	Bluetooth MIDI mode
+AUDIO OUT	audio output level
+COUNT-IN	one bar count in
+

@@ -9,8 +9,10 @@
 #define SF_SYNTH_MAX_STEPS 256u
 
 enum {
-    SF_ARP_UP = 0, SF_ARP_DN = 1, SF_ARP_UPDN = 2, SF_ARP_RND = 3, SF_NARP_MODE = 4
+    SF_ARP_UP = 0, SF_ARP_DN = 1, SF_ARP_UPDN = 2, SF_ARP_RND = 3,
+    SF_ARP_RND_WALK = 4, SF_ARP_ORDER = 5, SF_NARP_MODE = 6
 };
+#define SF_NARP_RATE 10u
 
 /* Matches simulator SCALE_MODE_ORDER */
 enum {
@@ -44,13 +46,18 @@ typedef struct {
     uint8_t swing;             /* 50..75 (%) */
     uint16_t seq_length;       /* 1..256 */
     uint8_t drum_kit;          /* 0..9 */
+    uint8_t synth_vol;         /* 0..100 */
     uint8_t drum_vol;          /* 0..100 */
+    uint8_t duck_amt;          /* 0..100 */
+    uint8_t duck_src;          /* 0..7 drum voice index */
+    uint8_t audio_out_mode;    /* 0=AUTO/HP, 1=LINE -6dB, 2=HI +3dB */
+    uint8_t hp_plugged;        /* 0=unplugged, 1=headphones, 255=unknown */
     uint8_t drum_bus;          /* 0..5 */
     uint8_t scale;             /* 0..11 */
     uint8_t root;              /* 0..11 */
     uint8_t chord_mode;        /* 0..4 */
-    uint8_t arp_mode;          /* 0..3 */
-    uint8_t arp_rate;          /* 0=1/8,1=1/16,2=1/16T,3=1/32 */
+    uint8_t arp_mode;          /* 0..5 */
+    uint8_t arp_rate;          /* 0..9 */
     uint8_t arp_octs;          /* 1..3 */
     uint8_t arp_latch;         /* 0..1 */
     uint8_t arp_gate;          /* 20..95 */
@@ -68,6 +75,7 @@ typedef struct {
     int8_t scope[128];
     uint8_t bands[32];
     uint8_t rms_pct;
+    uint8_t duck_pct;
     uint32_t note_trig_seq;
     uint32_t drum_trig_seq;
     uint8_t last_drum_idx;
@@ -82,6 +90,7 @@ void sf_dsp_aftertouch(uint8_t note, uint8_t prs);
 void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel);
 void sf_dsp_start_jingle(uint8_t jingle_idx, const sf_preset_t *jingle_patch);
 void sf_dsp_stop_jingle(void);
+void sf_dsp_click(uint8_t accent);
 void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12);
 int32_t sf_dsp_last_note(void);
 uint32_t sf_dsp_active_voices(void);
