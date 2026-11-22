@@ -92,6 +92,7 @@ typedef struct {
     uint8_t rec_quant;                  /* 1=quantized 16th grid (default), 0=unquantized */
     uint8_t drum_loop_bars;             /* 0=1 BAR (16), 1=2 BAR (32), 2=3 BAR (48), 3=4 BAR (64), 4=SYNC */
     uint8_t recent_presets[6][2];       /* Last 6 presets {bank, prog} for boot jingle */
+    int8_t preset_gain_db[SF_ROM_COUNT + SF_BANK_X_SLOTS]; /* Per-preset -12..+12 dB trim */
     sf_preset_t patch;
 } sf_settings_t;
 
@@ -146,6 +147,8 @@ static volatile uint8_t arp_walk_idx;
 static volatile uint8_t arp_dir_dn;
 static volatile uint32_t arp_tick_us;
 static volatile uint32_t arp_gate_us;
+static volatile uint32_t arp_trig_seq;
+static int8_t cur_patch_gain_db;
 
 static sf_loop_ev_t synth_loop[SYNTH_LOOP_MAX] PLAT_POOL;
 static volatile uint16_t synth_loop_cnt;
@@ -165,7 +168,7 @@ static uint8_t target_bankx_slot;
 static volatile uint8_t backup_hold;
 static uint32_t rand_seed = 0x9E3779B9u;
 
-static const uint8_t PAGE_SUBS[13] = {2u, 2u, 3u, 2u, 3u, 3u, 5u, 2u, 3u, 1u, 1u, 1u, 1u};
+static const uint8_t PAGE_SUBS[13] = {3u, 2u, 3u, 2u, 3u, 3u, 5u, 2u, 3u, 1u, 1u, 1u, 1u};
 static const char *const BANK_CHAR = "ABCDEFGHIX";
 static const char *const BANK_SUBS[10] = {
     "PADS & ATMOS", "LEADS & MONO", "BASS & ACID", "PLUCKS & BELL",
@@ -388,6 +391,18 @@ static uint8_t bankx_next_free(void)
     return 0u;
 }
 
+static void sync_patch_cfg(void)
+{
+    int hp = plat_headphones();
+    uint32_t f = plat_lock();
+    mem_copy(&eng.patch, &set.patch, (uint32_t)sizeof(sf_preset_t));
+    eng.synth_vol = set.synth_vol;
+    eng.patch_gain_db = cur_patch_gain_db;
+    eng.hp_plugged = (uint8_t)(hp == 0 ? 0u : (hp == 1 ? 1u : 255u));
+    sf_dsp_set_cfg(&eng);
+    plat_unlock(f);
+}
+
 static void sync_engine_cfg(void)
 {
     int hp = plat_headphones();
@@ -398,6 +413,7 @@ static void sync_engine_cfg(void)
     eng.seq_length = set.seq_length;
     eng.drum_kit = set.drum_kit;
     eng.synth_vol = set.synth_vol;
+    eng.patch_gain_db = cur_patch_gain_db;
     eng.drum_vol = set.drum_vol;
     eng.duck_amt = set.duck_amt;
     eng.duck_src = set.duck_src;
@@ -431,6 +447,13 @@ static uint32_t bank_len(uint8_t bank)
     if (bank < 8u) return SF_BANK_SIZE;
     if (bank == 8u) return SF_BANK_I_SIZE;
     return SF_BANK_X_SLOTS;
+}
+
+static uint32_t preset_flat_idx(uint8_t bank, uint8_t prog)
+{
+    if (bank < 8u) return (uint32_t)bank * SF_BANK_SIZE + (prog % SF_BANK_SIZE);
+    if (bank == 8u) return 256u + (prog % SF_BANK_I_SIZE);
+    return (uint32_t)SF_ROM_COUNT + (prog % SF_BANK_X_SLOTS);
 }
 
 static const sf_preset_t *get_preset_ptr(uint8_t bank, uint8_t prog)
@@ -489,6 +512,7 @@ static void load_preset(uint8_t bank, uint8_t prog)
     set.prog = (uint8_t)(prog % bank_len(set.bank));
     mem_copy(&set.patch, get_preset_ptr(set.bank, set.prog), (uint32_t)sizeof(sf_preset_t));
     mem_copy(&patch_baseline, &set.patch, (uint32_t)sizeof(sf_preset_t));
+    cur_patch_gain_db = (int8_t)clamp((int32_t)set.preset_gain_db[preset_flat_idx(set.bank, set.prog)], -12, 12);
     patch_compare_ab = 0u;
     record_recent_preset(set.bank, set.prog);
     set.arp_mode = sf_arp_mode(&set.patch);
@@ -711,6 +735,7 @@ static void settings_defaults(void)
     set.rand_style = SF_RAND_ALL;
     set.rec_quant = 1u;
     set.drum_loop_bars = 0u; /* Default 1 BAR (16) so 16-step drums repeat cleanly under 2-4 bar synth loops */
+    cur_patch_gain_db = 0;
     seed_recent_presets();
     default_drums();
 }
@@ -783,6 +808,10 @@ static void load_all_from_store(int allow_ble_start)
             if (set.drum_tone[i] > 100u) set.drum_tone[i] = 60u;
             if (set.drum_level[i] > 100u) set.drum_level[i] = 80u;
         }
+        for (i = 0; i < (uint32_t)(SF_ROM_COUNT + SF_BANK_X_SLOTS); i++) {
+            set.preset_gain_db[i] = (int8_t)clamp((int32_t)set.preset_gain_db[i], -12, 12);
+        }
+        cur_patch_gain_db = set.preset_gain_db[preset_flat_idx(set.bank, set.prog)];
         mem_copy(&patch_baseline, &set.patch, (uint32_t)sizeof(sf_preset_t));
         patch_compare_ab = 0u;
         arp_active = sf_arp_on(&set.patch);
@@ -898,10 +927,11 @@ static void randomize_patch(void)
     p.fx_drive = (uint8_t)(xorshift32() % 30u);
     p.arp_meta = (uint8_t)((SF_ARP_UPDN) | (1u << 2) | ((st == SF_RAND_ARP ? 1u : 0u) << 7));
     mem_copy(&set.patch, &p, (uint32_t)sizeof(p));
+    cur_patch_gain_db = 0;
     rand_count++;
     unsaved_random = 1u;
     set_dirty = 1u;
-    sync_engine_cfg();
+    sync_patch_cfg();
 }
 
 static void save_to_bankx_slot(uint32_t slot)
@@ -914,6 +944,7 @@ static void save_to_bankx_slot(uint32_t slot)
     bankx_chunks[ci].used[sub] = 1u;
     mem_copy(&bankx_chunks[ci].slots[sub], &set.patch, (uint32_t)sizeof(sf_preset_t));
     plat_store_save(bx_objs[ci], &bankx_chunks[ci], (uint32_t)sizeof(sf_bankx_chunk_t));
+    set.preset_gain_db[SF_ROM_COUNT + slot] = cur_patch_gain_db;
     set.bank = 9u;
     set.prog = (uint8_t)slot;
     unsaved_random = 0u;
@@ -932,9 +963,11 @@ static void revert_to_factory(uint8_t init_mode)
     if (init_mode) {
         sf_dsp_all_notes_off();
         make_init_patch(&set.patch, "STARFISH INIT");
+        cur_patch_gain_db = 0;
+        set.preset_gain_db[preset_flat_idx(set.bank, set.prog)] = 0;
         unsaved_random = 0u;
         set_dirty = 1u;
-        sync_engine_cfg();
+        sync_patch_cfg();
         save_settings_to_store();
     } else if (set.bank == 9u) {
         uint32_t ci = set.prog / SF_BANK_X_CHUNK;
@@ -950,9 +983,11 @@ static void revert_to_factory(uint8_t init_mode)
         bankx_chunks[ci].used[sub] = 0u;
         make_init_patch(&bankx_chunks[ci].slots[sub], lbl);
         plat_store_save(bx_objs[ci], &bankx_chunks[ci], (uint32_t)sizeof(sf_bankx_chunk_t));
+        set.preset_gain_db[SF_ROM_COUNT + set.prog] = 0;
         load_preset(9u, set.prog);
         save_settings_to_store();
     } else {
+        set.preset_gain_db[preset_flat_idx(set.bank, set.prog)] = 0;
         load_preset(set.bank, set.prog);
         save_settings_to_store();
     }
@@ -1117,9 +1152,9 @@ static void midi_in(uint32_t pkt, int port)
         sf_dsp_aftertouch(quantize_note((int32_t)d1), d2);
     } else if (type == 0xB0u) {
         if (d1 == 1u) { sf_dsp_set_mod_wheel(d2 & 127u); }
-        else if (d1 == 74u) { set.patch.f1_cut = d2 & 127u; set_dirty = 1u; sync_engine_cfg(); }
-        else if (d1 == 71u) { set.patch.f1_res = d2 & 127u; set_dirty = 1u; sync_engine_cfg(); }
-        else if (d1 == 7u) { set.synth_vol = (uint8_t)(((uint32_t)(d2 & 127u) * 100u) / 127u); sync_engine_cfg(); }
+        else if (d1 == 74u) { set.patch.f1_cut = d2 & 127u; set_dirty = 1u; sync_patch_cfg(); }
+        else if (d1 == 71u) { set.patch.f1_res = d2 & 127u; set_dirty = 1u; sync_patch_cfg(); }
+        else if (d1 == 7u) { set.synth_vol = (uint8_t)(((uint32_t)(d2 & 127u) * 100u) / 127u); sync_patch_cfg(); }
         else if (d1 == 121u) { sf_dsp_set_pitch_bend(0); sf_dsp_set_mod_wheel(0u); }
         else if (d1 == 120u || d1 == 123u) sf_dsp_panic();
     } else if (type == 0xC0u) {
@@ -1398,6 +1433,7 @@ void app_tick(void)
                     uint8_t nn = quantize_note((int32_t)base_n + (int32_t)pick_oct * 12);
                     sf_dsp_note_on(nn, vel);
                     arp_cur_note = (int8_t)nn;
+                    arp_trig_seq++;
                 }
             }
         }
@@ -1423,6 +1459,10 @@ static struct {
     uint32_t rec_hold_start;
     uint8_t rec_did_long;
     uint8_t arp_combo_used;
+    uint32_t arp_hold_start;
+    uint8_t arp_did_long;
+    uint32_t arp_step_led_until;
+    uint32_t arp_last_trig_seq;
     uint32_t seq_hold_start;
     uint8_t seq_did_long;
     uint8_t seq_entered_on_down;
@@ -1922,6 +1962,29 @@ static void knob_label_val(uint8_t k, char lbl[16], char val[16], int32_t *pct)
             else if (k == 2u) { text_copy(lbl, "TEMPO", 16u); int_text(set.bpm, val); text_cat(val, " BPM"); *pct = ((int32_t)set.bpm - 40) / 2; }
             else { text_copy(lbl, "CHORD", 16u); text_copy(val, CHORD_NAMES[set.chord_mode % SF_NCHORD], 16u); *pct = ((int32_t)set.chord_mode * 25); }
         }
+    } else if (ui.page == PAGE_HOME && sub == 2u) {
+        if (k == 0u) {
+            text_copy(lbl, "PATCH GAIN", 16u);
+            if (cur_patch_gain_db > 0) { val[0] = '+'; int_text(cur_patch_gain_db, val + 1); }
+            else int_text(cur_patch_gain_db, val);
+            text_cat(val, "dB");
+            *pct = ((int32_t)cur_patch_gain_db + 12) * 100 / 24;
+        } else if (k == 1u) {
+            text_copy(lbl, "AUDIO OUT", 16u);
+            text_copy(val, OUT_MODE_NAMES[set.audio_out_mode % 3u], 16u);
+            *pct = ((int32_t)(set.audio_out_mode % 3u) * 100) / 2;
+        } else if (k == 2u) {
+            uint8_t pv = sf_polyphony(p);
+            text_copy(lbl, "POLY", 16u);
+            int_text(pv, val);
+            text_cat(val, "V");
+            *pct = ((int32_t)pv - 1) * 100 / 7;
+        } else {
+            text_copy(lbl, "SYNTH LVL", 16u);
+            int_text(set.synth_vol, val);
+            text_cat(val, "%");
+            *pct = set.synth_vol;
+        }
     } else if (ui.page == PAGE_HOME && sub == 1u) {
         if (k == 0u) { text_copy(lbl, "SYNTH LVL", 16u); int_text(set.synth_vol, val); text_cat(val, "%"); *pct = set.synth_vol; }
         else if (k == 1u) { text_copy(lbl, "KICK DUCK", 16u); int_text(set.duck_amt, val); text_cat(val, "%"); *pct = set.duck_amt; }
@@ -2052,7 +2115,7 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
             else set.arp_accent = (uint8_t)clamp((int32_t)set.arp_accent + d * 5, 0, 100);
         } else {
             if (k == 0u) { arp_active = arp_active ? 0u : 1u; if (!arp_active) set.arp_latch = 0u; }
-            else if (k == 1u) set.arp_latch = set.arp_latch ? 0u : 1u;
+            else if (k == 1u) { set.arp_latch = set.arp_latch ? 0u : 1u; if (set.arp_latch) arp_active = 1u; }
             else if (k == 2u) set.arp_mode = (uint8_t)(((int32_t)set.arp_mode + d + (int32_t)SF_NARP_MODE * 2) % (int32_t)SF_NARP_MODE);
             else set.arp_rate = (uint8_t)(((int32_t)set.arp_rate + d + (int32_t)SF_NARP_RATE * 2) % (int32_t)SF_NARP_RATE);
         }
@@ -2128,6 +2191,21 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
             else if (k == 2u) { set.bpm = (uint16_t)clamp((int32_t)set.bpm + d * 2, 40, 240); mark_drum_mix_dirty(now); }
             else set.chord_mode = (uint8_t)(((int32_t)set.chord_mode + d + (int32_t)SF_NCHORD) % (int32_t)SF_NCHORD);
         }
+    } else if (ui.page == PAGE_HOME && sub == 2u) {
+        if (k == 0u) {
+            cur_patch_gain_db = (int8_t)clamp((int32_t)cur_patch_gain_db + d, -12, 12);
+            set.preset_gain_db[preset_flat_idx(set.bank, set.prog)] = cur_patch_gain_db;
+            mark_drum_mix_dirty(now);
+        } else if (k == 1u) {
+            set.audio_out_mode = (uint8_t)(((int32_t)set.audio_out_mode + d + 6) % 3);
+            mark_drum_mix_dirty(now);
+        } else if (k == 2u) {
+            uint8_t pv = (uint8_t)clamp((int32_t)sf_polyphony(p) + (d > 0 ? 1 : -1), 1, 8);
+            p->unison_poly = (p->unison_poly & ~0x38u) | ((pv - 1u) << 3);
+        } else {
+            set.synth_vol = (uint8_t)clamp((int32_t)set.synth_vol + d * 4, 0, 100);
+            mark_drum_mix_dirty(now);
+        }
     } else if (ui.page == PAGE_HOME && sub == 1u) {
         if (k == 0u) set.synth_vol = (uint8_t)clamp((int32_t)set.synth_vol + d * 4, 0, 100);
         else if (k == 1u) set.duck_amt = (uint8_t)clamp((int32_t)set.duck_amt + d * 4, 0, 100);
@@ -2140,7 +2218,9 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
         else p->f_bal = (uint8_t)clamp((int32_t)p->f_bal + d * 4, 0, 100);
     }
 
-    if ((ui.page == PAGE_HOME && sub == 0u) || ui.page == PAGE_FX || ui.page == PAGE_SEL ||
+    if ((ui.page == PAGE_HOME && sub == 0u) ||
+        (ui.page == PAGE_HOME && sub == 2u && k == 2u) ||
+        ui.page == PAGE_FX || ui.page == PAGE_SEL ||
         ui.page == PAGE_ENV || ui.page == PAGE_LFO || ui.page == PAGE_EDIT ||
         (ui.page == PAGE_GLO && sub == 1u && k == 2u) ||
         (ui.page == PAGE_GLO && sub == 2u && k == 2u)) {
@@ -2148,7 +2228,13 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
     } else if ((ui.page == PAGE_HOME && sub == 1u) || ui.page == PAGE_ARP || ui.page == PAGE_GLO) {
         mark_drum_mix_dirty(now);
     }
-    sync_engine_cfg();
+    if ((ui.page == PAGE_HOME && (sub == 0u || (sub == 2u && k != 1u))) ||
+        ui.page == PAGE_FX || ui.page == PAGE_SEL ||
+        ui.page == PAGE_ENV || ui.page == PAGE_LFO || ui.page == PAGE_EDIT) {
+        sync_patch_cfg();
+    } else {
+        sync_engine_cfg();
+    }
     knob_label_val(k, lbl, val, &pct);
     show_hud_param(now, (uint8_t)(k + 1u), lbl, val, pct, (k < 2u) ? theme_accent() : COL_AMBER);
 }
@@ -2278,7 +2364,7 @@ static void input(uint32_t now)
             next_o = OSC_ORDER[oi];
             set.patch.osc_meta = (set.patch.osc_meta & ~0x0Fu) | (next_o & 7u) | ((next_o == SF_OSC_SYNC ? 1u : 0u) << 3);
             set_dirty = 1u;
-            sync_engine_cfg();
+            sync_patch_cfg();
             show_hud_badge(now, OSC_NAMES[oi], "SYNTH / OSC ENGINE", COL_AMBER, 950u);
         }
     }
@@ -2332,6 +2418,7 @@ static void input(uint32_t now)
     if ((b >> B_ARP) & 1u) {
         if ((down >> B_OCTUP) & 1u || (down >> B_OCTDN) & 1u) {
             ui.arp_combo_used = 1u;
+            ui.arp_hold_start = 0u;
             set.arp_latch = set.arp_latch ? 0u : 1u;
             if (set.arp_latch) arp_active = 1u;
             sync_engine_cfg();
@@ -2346,13 +2433,14 @@ static void input(uint32_t now)
         mem_copy(&patch_baseline, &tmp, (uint32_t)sizeof(sf_preset_t));
         patch_compare_ab = patch_compare_ab ? 0u : 1u;
         set_dirty = patch_compare_ab ? 0u : 1u;
-        sync_engine_cfg();
+        sync_patch_cfg();
         show_hud_badge(now, patch_compare_ab ? "A/B: ORIGINAL" : "A/B: EDITED", set.patch.name, COL_AMBER, 1000u);
         down &= ~((1u << B_HOME) | (1u << B_SEL));
     }
     if ((((b >> B_GLO) & 1u) && ((down >> B_ARP) & 1u)) || (((b >> B_ARP) & 1u) && ((down >> B_GLO) & 1u))) {
         ui.disco_mode = ui.disco_mode ? 0u : 1u;
         ui.arp_combo_used = 1u;
+        ui.arp_hold_start = 0u;
         show_hud_badge(now, ui.disco_mode ? "DISCO STARFISH!" : "DISCO OFF", ui.disco_mode ? "PARTY PALETTE ON" : "BACK TO NORMAL", COL_PURPLE, 1100u);
         down &= ~((1u << B_GLO) | (1u << B_ARP));
     }
@@ -2403,11 +2491,15 @@ static void input(uint32_t now)
         if ((b >> B_GLO) & 1u) {
             ui.page = PAGE_BLE; ui.redraw = 1u;
         } else if (ui.page == PAGE_HOME) {
-            ui.sub[PAGE_HOME] = ui.sub[PAGE_HOME] ? 0u : 1u;
-            show_hud_badge(now, ui.sub[PAGE_HOME] ? "MIX & DUCK (2/2)" : "PERFORMANCE (1/2)", "", ui.sub[PAGE_HOME] ? COL_AMBER : COL_CYAN, 700u);
+            ui.sub[PAGE_HOME] = (uint8_t)((ui.sub[PAGE_HOME] + 1u) % 3u);
+            show_hud_badge(now,
+                           ui.sub[PAGE_HOME] == 2u ? "GAIN & OUT (3/3)" : (ui.sub[PAGE_HOME] == 1u ? "MIX & DUCK (2/3)" : "PERFORMANCE (1/3)"),
+                           "",
+                           ui.sub[PAGE_HOME] == 2u ? COL_GREEN : (ui.sub[PAGE_HOME] == 1u ? COL_AMBER : COL_CYAN),
+                           700u);
         } else {
             ui.page = PAGE_HOME; ui.sub[PAGE_HOME] = 0u;
-            show_hud_badge(now, "PERFORMANCE (1/2)", "", COL_CYAN, 700u);
+            show_hud_badge(now, "PERFORMANCE (1/3)", "", COL_CYAN, 700u);
         }
     }
     if ((down >> B_SEQ) & 1u) {
@@ -2462,18 +2554,54 @@ static void input(uint32_t now)
     if ((down >> B_OCTDN) & 1u) handle_octave_delta(now, -1);
     if ((down >> B_OCTUP) & 1u) handle_octave_delta(now, 1);
 
-    /* ARP button: direct page cycle (1/2 -> 2/2 -> Home), while ARP+OCT± (Latch) & GLO+ARP (Disco) still act on hold */
+    /* ARP button: short press cycles 1/2 -> 2/2 -> Home; hold 420ms toggles ARP+LATCH ON <-> ARP+LATCH OFF */
     if ((down >> B_ARP) & 1u) {
+        ui.arp_hold_start = now;
+        ui.arp_did_long = 0u;
         ui.arp_combo_used = 0u;
     }
+    if (((b >> B_ARP) & 1u) && ui.arp_hold_start && !ui.arp_did_long && !ui.arp_combo_used) {
+        if ((now - ui.arp_hold_start) >= 420u) {
+            ui.arp_did_long = 1u;
+            ui.arp_hold_start = 0u;
+            if (!arp_active) {
+                arp_active = 1u;
+                set.arp_latch = 1u;
+                show_hud_badge(now, "ARP + LATCH ON", "HOLD KEYS TO FREEZE", COL_AMBER, 1050u);
+            } else {
+                int8_t cn;
+                uint32_t f = plat_lock();
+                arp_active = 0u;
+                set.arp_latch = 0u;
+                for (i = 0u; i < NKEYS; i++) {
+                    arp_held[i] = 0u;
+                    arp_latch_buf[i] = 0u;
+                }
+                for (i = 0u; i < 4u; i++) {
+                    arp_midi_mask[i] = 0u;
+                    arp_midi_latch_mask[i] = 0u;
+                }
+                arp_order_cnt = 0u;
+                cn = arp_cur_note;
+                arp_cur_note = -1;
+                plat_unlock(f);
+                if (cn >= 0) sf_dsp_note_off((uint8_t)cn);
+                show_hud_badge(now, "ARP + LATCH OFF", "FREE PLAY MODE", COL_CYAN, 900u);
+            }
+            mark_drum_mix_dirty(now);
+            sync_engine_cfg();
+        }
+    }
     if ((up >> B_ARP) & 1u) {
-        if (!ui.arp_combo_used) {
+        if (!ui.arp_did_long && !ui.arp_combo_used) {
             uint8_t go_sub2 = (ui.page == PAGE_ARP && ui.sub[PAGE_ARP] == 0u) ? 1u : 0u;
             cycle_page_btn(now, PAGE_ARP,
                            go_sub2 ? "ARP GROOVE (2/2)" : "ARP SETUP (1/2)",
-                           go_sub2 ? "OCT · DENS · GATE · ACC" : "K1:ARP · K2:LATCH · +OCT:LCH",
+                           go_sub2 ? "OCT · DENS · GATE · ACC" : "K1:ARP · K2:LATCH · HOLD:ON/OFF",
                            COL_GREEN);
         }
+        ui.arp_hold_start = 0u;
+        ui.arp_did_long = 0u;
     }
 
     if ((down >> B_REC) & 1u) {
@@ -3551,8 +3679,9 @@ static void draw_page_strip(uint32_t now)
         cv_rect(8, 38, 4, 42, ui.hud_accent);
         draw_upper_fit(18, 47, 210, ui.hud_title, ui.hud_accent, 0u);
     } else {
-        text_copy(title, sub ? "MIX & DUCK (2/2)" : "PERFORMANCE (1/2)", sizeof(title));
-        if (p == PAGE_HOME && sub) acc = COL_AMBER;
+        text_copy(title, sub == 2u ? "GAIN & OUT (3/3)" : (sub == 1u ? "MIX & DUCK (2/3)" : "PERFORMANCE (1/3)"), sizeof(title));
+        if (p == PAGE_HOME && sub == 1u) acc = COL_AMBER;
+        else if (p == PAGE_HOME && sub == 2u) acc = COL_GREEN;
 
         if (p == PAGE_FX) {
             text_copy(title, sub ? "DLY & SAT (2/2)" : "FX RACK (1/2)", sizeof(title));
@@ -3886,9 +4015,15 @@ static void draw_center_stage(uint32_t now, float rms)
             cv_rect(tx, 86, 21, 15, mut ? (sel ? COL_RED : COL_RED_DIM) : (sel ? COL_CYAN : COL_CELL));
             cv_text(tx + 3, 88, &FONT_XS, DRUM_NAMES[i], mut ? (sel ? C_WHITE : COL_RED_TXT) : (sel ? COL_BG : COL_LIGHT));
         }
-        cv_rect(194, 86, 38, 15, COL_BAR_BG);
+        cv_rect(194, 86, 38, 10, COL_BAR_BG);
         bpill[0] = 'B'; bpill[1] = (char)('1' + abar); bpill[2] = '/'; bpill[3] = (char)('0' + bars); bpill[4] = 0;
-        cv_text(201, 88, &FONT_XS, bpill, COL_AMBER);
+        cv_text(201, 85, &FONT_T, bpill, COL_AMBER);
+        for (i = 0; i < 4; i++) {
+            uint8_t active_b = (i == (int32_t)abar) ? 1u : 0u;
+            uint8_t en_b = (i < (int32_t)bars) ? 1u : 0u;
+            uint16_t bc = active_b ? COL_GREEN : (en_b ? COL_CYAN_DIM : COL_CELL);
+            cv_rect(194 + i * 10, 97, 8, 4, bc);
+        }
         for (i = 0; i < 16; i++) {
             uint32_t abs_s = (uint32_t)abar * 16u + (uint32_t)i;
             uint8_t inl = abs_s < dlen ? 1u : 0u;
@@ -3990,8 +4125,43 @@ static void draw_center_stage(uint32_t now, float rms)
                 }
             }
         }
+    } else if (p == PAGE_HOME && sub == 2u) {
+        /* HOME 3/3: AUTO-SAVED PER-PRESET GAIN TRIM & OUTPUT HEADROOM */
+        char mb[24], nb[8];
+        int32_t g_norm = cur_patch_gain_db;
+        int32_t center_x = 128;
+        int32_t gw = (g_norm * 62) / 12;
+        int32_t slw = (130 * (int32_t)set.synth_vol) / 100;
+        int hp = plat_headphones();
+        uint8_t pv = sf_polyphony(pr);
+
+        cv_text(12, 91, &FONT_XS, "GAIN", COL_GREEN);
+        cv_rect(64, 92, 130, 10, COL_CELL);
+        cv_rect(center_x, 90, 1, 14, COL_SLATE_D);
+        if (gw > 0) cv_rect(center_x + 1, 92, gw, 10, COL_GREEN);
+        else if (gw < 0) cv_rect(center_x + gw, 92, -gw, 10, COL_AMBER);
+        if (cur_patch_gain_db > 0) { mb[0] = '+'; int_text(cur_patch_gain_db, mb + 1); }
+        else int_text(cur_patch_gain_db, mb);
+        text_cat(mb, "dB");
+        cv_text(200, 91, &FONT_XS, mb, cur_patch_gain_db != 0 ? COL_GREEN : COL_TEXT_HI);
+
+        cv_text(12, 110, &FONT_XS, "SYNTH", COL_CYAN);
+        cv_rect(64, 111, 130, 10, COL_CELL);
+        if (slw > 0) cv_rect(64, 111, slw, 10, COL_CYAN);
+        int_text(set.synth_vol, nb); text_copy(mb, nb, sizeof(mb)); text_cat(mb, "%");
+        cv_text(200, 110, &FONT_XS, mb, COL_TEXT_HI);
+
+        text_copy(mb, "OUT: ", sizeof(mb));
+        text_cat(mb, OUT_MODE_NAMES[set.audio_out_mode % 3u]);
+        text_cat(mb, hp == 1 ? " (HP)" : (hp == 0 ? " (SPKR)" : ""));
+        cv_text(12, 129, &FONT_XS, mb, COL_AMBER);
+        int_text((int32_t)pv, nb);
+        text_copy(mb, "POLY ", sizeof(mb)); text_cat(mb, nb); text_cat(mb, "V");
+        cv_text(176, 129, &FONT_XS, mb, COL_LIGHT);
+
+        cv_text(12, 148, &FONT_XS, "GAIN AUTO-SAVED PER PRESET", COL_MUTED);
     } else if (p == PAGE_HOME && sub == 1u) {
-        /* HOME 2/2: MIXER & KICK SIDECHAIN DUCKING METER */
+        /* HOME 2/3: MIXER & KICK SIDECHAIN DUCKING METER */
         char mb[24], nb[8];
         int32_t sw = (130 * (int32_t)set.synth_vol) / 100;
         int32_t dw = (130 * (int32_t)set.drum_vol) / 100;
@@ -4020,9 +4190,9 @@ static void draw_center_stage(uint32_t now, float rms)
             text_copy(mb, "-", sizeof(mb)); text_cat(mb, nb); text_cat(mb, "%");
             cv_text(200, 129, &FONT_XS, mb, COL_AMBER);
         }
-        cv_text(12, 148, &FONT_XS, "PRESS HOME TO RETURN 1/2", COL_MUTED);
+        cv_text(12, 148, &FONT_XS, "PRESS HOME FOR GAIN (3/3)", COL_MUTED);
     } else {
-        /* HOME 1/2: Live 32-band Spectrum Analyzer + Cutoff Passband + Glowing Oscilloscope + Playhead Strip */
+        /* HOME 1/3: Live 32-band Spectrum Analyzer + Cutoff Passband + Glowing Oscilloscope + Playhead Strip */
         int32_t cx1 = 12 + ((int32_t)pr->f1_cut * 216) / 127;
         int32_t cx2 = 12 + ((int32_t)pr->f2_cut * 216) / 127;
         float tsec = (float)now * 0.003f;
@@ -4223,8 +4393,13 @@ static void update_leds(uint32_t now)
     else if (ui.page == PAGE_HOME) active_page_bit = (1u << B_HOME);
     else if (ui.page == PAGE_SEQ) active_page_bit = (1u << B_SEQ);
 
+    if (arp_trig_seq != ui.arp_last_trig_seq) {
+        ui.arp_last_trig_seq = arp_trig_seq;
+        ui.arp_step_led_until = now + 85u;
+    }
     btn |= active_page_bit;
-    if (arp_active) btn |= (1u << B_ARP);
+    if (now < ui.arp_step_led_until) btn |= (1u << B_ARP);
+    else if (arp_active && arp_order_cnt == 0u) btn |= (1u << B_ARP);
     if (set_dirty) btn |= (1u << B_SAVE);
     if (rec_armed) btn |= (1u << B_REC);
     if (seq_playing) btn |= LED_PLAY_GREEN;

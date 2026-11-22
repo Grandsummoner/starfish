@@ -47,6 +47,7 @@ typedef struct {
     uint16_t seq_length;       /* 1..256 */
     uint8_t drum_kit;          /* 0..9 */
     uint8_t synth_vol;         /* 0..100 */
+    int8_t patch_gain_db;      /* -12..+12 dB per-preset gain trim */
     uint8_t drum_vol;          /* 0..100 */
     uint8_t duck_amt;          /* 0..100 */
     uint8_t duck_src;          /* 0..7 drum voice index */
