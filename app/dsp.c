@@ -317,6 +317,8 @@ static struct {
     sf_dsp_vis_t vis;
     float vis_bands_f[32];
     float vis_rms_f;
+    float pitch_bend_targ, pitch_bend_cur;
+    float mod_wheel_targ, mod_wheel_cur;
 } dsp;
 
 static void init_wavetable_lut(void)
@@ -415,11 +417,29 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     }
     for (i = 0; i < 128u; i++)
         dsp.vis.scope[i] = 0;
+    dsp.pitch_bend_targ = dsp.pitch_bend_cur = 0.0f;
+    dsp.mod_wheel_targ = dsp.mod_wheel_cur = 0.0f;
 }
 
 void sf_dsp_set_cfg(sf_engine_cfg_t *cfg)
 {
     dsp.cfg = cfg;
+}
+
+void sf_dsp_set_pitch_bend(int16_t bend_q14)
+{
+    float st = sf_clamp((float)bend_q14 * (2.0f / 8192.0f), -2.0f, 2.0f);
+    uint32_t f = plat_lock();
+    dsp.pitch_bend_targ = st;
+    plat_unlock(f);
+}
+
+void sf_dsp_set_mod_wheel(uint8_t val)
+{
+    float mw = sf_clamp((float)(val & 127u) * (1.0f / 127.0f), 0.0f, 1.0f);
+    uint32_t f = plat_lock();
+    dsp.mod_wheel_targ = mw;
+    plat_unlock(f);
 }
 
 void sf_dsp_click(uint8_t accent)
@@ -474,6 +494,8 @@ void sf_dsp_panic(void)
     dsp.duck_atk_rem = 0u;
     dsp.duck_trig = 0u;
     dsp.vis.duck_pct = 0u;
+    dsp.pitch_bend_targ = dsp.pitch_bend_cur = 0.0f;
+    dsp.mod_wheel_targ = dsp.mod_wheel_cur = 0.0f;
     plat_unlock(f);
 }
 
@@ -756,7 +778,7 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
     uint32_t v, i;
     uint8_t kit = dsp.cfg ? dsp.cfg->drum_kit : 0u;
     uint8_t bus = dsp.cfg ? dsp.cfg->drum_bus : 0u;
-    float drum_gain = dsp.cfg ? ((float)dsp.cfg->drum_vol * 0.01f) * 0.60f : 0.48f;
+    float drum_gain = dsp.cfg ? ((float)dsp.cfg->drum_vol * 0.01f) * 0.95f : 0.78f;
     /* Distinct 10-Kit Character Tables:
        0:808, 1:909, 2:CR78, 3:LINN, 4:ELECTRO, 5:HOUSE, 6:JAZZ, 7:DX_FM, 8:LOFI, 9:TRAP */
     static const float K_END[SF_DRUM_KITS]   = {41.0f, 54.0f, 58.0f, 50.0f, 42.0f, 49.0f, 60.0f, 46.0f, 44.0f, 34.0f};
@@ -1057,6 +1079,8 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float trem = sf_clamp(1.0f + mod_amp * 0.45f, 0.1f, 1.3f);
     float uni_pan_norm = (float)p->uni_pan * 0.01f;
     float glide_coeff = (p->glide == 0u) ? 1.0f : sf_clamp(1.0f - (float)p->glide * 0.0108f, 0.03f, 0.9f);
+    dsp.pitch_bend_cur += (dsp.pitch_bend_targ - dsp.pitch_bend_cur) * 0.35f;
+    dsp.mod_wheel_cur += (dsp.mod_wheel_targ - dsp.mod_wheel_cur) * 0.25f;
     /* Adaptive CPU load shedding when polyphonic synth chords + drum machine run together */
     uint8_t lite_hyper = (active_cnt + (drum_cnt > 0u ? 1u : 0u) >= 4u) ? 1u : 0u;
     uint8_t skip_blep = (active_cnt >= 5u || (active_cnt >= 3u && drum_cnt >= 2u)) ? 1u : 0u;
@@ -1068,7 +1092,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             continue;
 
         vc->pitch_cur += ((float)vc->note - vc->pitch_cur) * glide_coeff;
-        float note_f = vc->pitch_cur + (float)p->oct * 12.0f + mod_pitch * 1.5f;
+        float note_f = vc->pitch_cur + (float)p->oct * 12.0f + mod_pitch * 1.5f + dsp.pitch_bend_cur;
         float f0 = 440.0f * sf_ram_exp2f((note_f - 69.0f) * (1.0f / 12.0f));
         float dt1 = sf_clamp(f0 * INV_SR, 0.0001f, 0.45f);
         float dt2 = sf_clamp(f0 * osc2_ratio * INV_SR, 0.0001f, 0.45f);
@@ -1077,14 +1101,14 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float kf_oct = ((vc->pitch_cur - 60.0f) * (1.0f / 12.0f)) * kf_amt;
         float vel_norm = (float)vc->vel * (1.0f / 127.0f);
         float vel_cut = (vel_norm - 0.55f) * 1.15f;
-        float cut_scale = sf_ram_exp2f(mod_cut1 * 2.5f + (vc->flt_env * fenv_oct) + kf_oct + vel_cut + ((float)vc->prs * (1.0f / 127.0f)) * 1.4f);
+        float cut_scale = sf_ram_exp2f(mod_cut1 * 2.5f + (vc->flt_env * fenv_oct) + kf_oct + vel_cut + ((float)vc->prs * (1.0f / 127.0f)) * 1.4f + dsp.mod_wheel_cur * 3.2f);
         float cut1_hz = sf_clamp(cut1_base * cut_scale, 40.0f, 12500.0f);
         float g1 = sf_clamp(3.14159f * cut1_hz * INV_SR, 0.0028f, 0.89f);
         float hf1 = sf_clamp((cut1_hz - 7500.0f) * (1.0f / 5000.0f), 0.0f, 1.0f);
         float q1_eff = q1 * (1.0f - hf1 * 0.65f);
         if (q1_eff < 0.5f) q1_eff = 0.5f;
 
-        float cut2_hz = sf_clamp(cut2_base * sf_ram_exp2f(mod_cut2 * 2.5f + kf_oct * 0.5f + vel_cut * 0.4f), 40.0f, 12500.0f);
+        float cut2_hz = sf_clamp(cut2_base * sf_ram_exp2f(mod_cut2 * 2.5f + kf_oct * 0.5f + vel_cut * 0.4f + dsp.mod_wheel_cur * 1.8f), 40.0f, 12500.0f);
         float g2 = sf_clamp(3.14159f * cut2_hz * INV_SR, 0.0028f, 0.89f);
         float hf2 = sf_clamp((cut2_hz - 7500.0f) * (1.0f / 5000.0f), 0.0f, 1.0f);
         float q2_eff = q2 * (1.0f - hf2 * 0.65f);
@@ -1093,7 +1117,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         svf_prep(&c1, g1, 1.0f / q1_eff, f1_type);
         svf_prep(&c2, g2, 1.0f / q2_eff, f2_type);
 
-        float vel_g = (0.35f + 0.65f * vel_norm) * 0.26f * trem;
+        float vel_g = (0.35f + 0.65f * vel_norm) * 0.175f * trem;
         if (vc->vel_g_cur < 0.0f)
             vc->vel_g_cur = vel_g;
         float vpan = sf_clamp((((float)(v & 3u) - 1.5f) * 0.22f * spread * uni_pan_norm) + mod_pan * 0.5f, -0.82f, 0.82f);

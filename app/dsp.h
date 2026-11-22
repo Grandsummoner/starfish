@@ -61,6 +61,8 @@ typedef struct {
     uint8_t arp_octs;          /* 1..3 */
     uint8_t arp_latch;         /* 0..1 */
     uint8_t arp_gate;          /* 20..95 */
+    uint8_t arp_density;       /* 10..100 (%) */
+    uint8_t arp_accent;        /* 0..100 (%) */
     uint8_t rand_chaos;        /* 20..100 */
     uint8_t rand_style;        /* 0..7 */
     uint8_t seq_pat[SF_DRUM_VOICES][SF_SEQ_STEPS]; /* 0=off,1=hit,2=accent */
@@ -88,6 +90,8 @@ void sf_dsp_note_on(uint8_t note, uint8_t vel);
 void sf_dsp_note_off(uint8_t note);
 void sf_dsp_all_notes_off(void);
 void sf_dsp_aftertouch(uint8_t note, uint8_t prs);
+void sf_dsp_set_pitch_bend(int16_t bend_q14);
+void sf_dsp_set_mod_wheel(uint8_t val);
 void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel);
 void sf_dsp_start_jingle(uint8_t jingle_idx, const sf_preset_t *jingle_patch);
 void sf_dsp_stop_jingle(void);
