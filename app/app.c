@@ -71,7 +71,7 @@ typedef struct {
     uint8_t scale;                      /* 0..11 */
     uint8_t root;                       /* 0..11 */
     uint8_t chord_mode;                 /* 0..4 */
-    uint8_t arp_mode;                   /* 0..5 */
+    uint8_t arp_mode;                   /* 0..8 */
     uint8_t arp_rate;                   /* 0..9 */
     uint8_t arp_octs;                   /* 1..3 */
     uint8_t arp_latch;                  /* 0..1 */
@@ -147,6 +147,8 @@ static volatile uint8_t arp_walk_idx;
 static volatile uint8_t arp_dir_dn;
 static volatile uint32_t arp_tick_us;
 static volatile uint32_t arp_gate_us;
+static volatile uint32_t arp_rot_ms;
+static volatile uint8_t arp_rot_offset;
 static volatile uint32_t arp_trig_seq;
 static int8_t cur_patch_gain_db;
 
@@ -199,7 +201,9 @@ static const char *const SCALE_NAMES[SF_NSCALE] = {
     "PHRYGIAN", "LYDIAN", "MIXOLYDIAN", "LOCRIAN", "MAJ PENT", "MIN PENT"
 };
 static const char *const CHORD_NAMES[SF_NCHORD] = {"OFF", "OCTAVE", "FIFTH", "MINOR 7", "MAJOR 7"};
-static const char *const ARP_MODE_NAMES[SF_NARP_MODE] = {"UP", "DOWN", "UP/DN", "RAND", "RND WLK", "ORDER"};
+static const char *const ARP_MODE_NAMES[SF_NARP_MODE] = {
+    "UP", "DOWN", "UP/DN", "RAND", "RND WLK", "ORDER", "ROTATE(S)", "ROTATE(M)", "ROTATE(F)"
+};
 static const char *const ARP_RATE_NAMES[SF_NARP_RATE] = {"1/4", "1/4T", "1/8", "1/8D", "1/8T", "1/16", "1/16D", "1/16T", "1/32", "1/32T"};
 static const char *const DLY_SYNC_NAMES[6] = {"SYNC 1/16", "SYNC 1/8T", "SYNC 1/8", "SYNC 1/8D", "SYNC 1/4", "SYNC 1/4D"};
 static const char *const BT_MODE_NAMES[4] = {"AUTO DUAL", "HOST SMK37", "DEVICE PC", "BT OFF"};
@@ -218,12 +222,14 @@ static const char *const DRUM_NAMES[SF_DRUM_VOICES] = {
 static const char *const BUS_NAMES[SF_NBUS] = {
     "CLEAN PCM", "WARM CONSOLE", "PUNCH COMP", "SUB BASS +", "CLUB ROOM", "FM SPARKLE"
 };
-static const char *const DRUM_PRESET_NAMES[5] = {"TECHNO", "HOUSE", "ELECTRO", "BREAK", "CLEAR"};
 static const char *const RAND_NAMES[SF_NRAND_STYLE] = {
     "ALL", "PAD", "LEAD", "BASS", "PLUCK", "ARP", "KEYS", "FX"
 };
 static const char *const MASCOT_TITLES[6] = {
     "BEACH CHILLIN'", "MOON EXPLORER", "SUB CAPTAIN", "CAMPFIRE JAM", "ROCKET SKATER", "STARFISH CHEF"
+};
+static const char *const WEATHER_NAMES[4] = {
+    "SNOW", "RAIN", "SHINE", "WIND"
 };
 static const char *const JINGLE_NAMES[6] = {
     "CORAL MAJ9", "LUNAR FIFTHS", "LAGOON WAVE", "STAR HOP", "REEF DREAM", "TURBO BOOT"
@@ -515,13 +521,13 @@ static void load_preset(uint8_t bank, uint8_t prog)
     cur_patch_gain_db = (int8_t)clamp((int32_t)set.preset_gain_db[preset_flat_idx(set.bank, set.prog)], -12, 12);
     patch_compare_ab = 0u;
     record_recent_preset(set.bank, set.prog);
-    set.arp_mode = sf_arp_mode(&set.patch);
-    set.arp_rate = PRESET_ARP_RATE_MAP[sf_arp_rate(&set.patch) & 3u];
-    set.arp_octs = sf_arp_octs(&set.patch);
     if (keep_arp || keep_latch) {
         arp_active = 1u;
         set.arp_latch = keep_latch;
     } else {
+        set.arp_mode = sf_arp_mode(&set.patch);
+        set.arp_rate = PRESET_ARP_RATE_MAP[sf_arp_rate(&set.patch) & 3u];
+        set.arp_octs = sf_arp_octs(&set.patch);
         arp_active = sf_arp_on(&set.patch);
         set.arp_latch = sf_arp_latch(&set.patch);
     }
@@ -1383,10 +1389,26 @@ void app_tick(void)
             arp_tick_us = 0u;
             arp_pos = 0u;
             arp_walk_idx = 0u;
+            arp_rot_ms = 0u;
+            arp_rot_offset = 0u;
         } else {
+            uint8_t is_rot = (set.arp_mode >= SF_ARP_ROT_S) ? 1u : 0u;
+            uint32_t rot_n = (is_rot && n_notes > SF_MAX_VOICES) ? SF_MAX_VOICES : n_notes;
+            uint32_t rot_total = rot_n * octs;
+            if (is_rot && rot_total > 0u) {
+                uint32_t rot_period_ms = (set.arp_mode == SF_ARP_ROT_S) ? 2400u : (set.arp_mode == SF_ARP_ROT_M) ? 750u : 220u;
+                arp_rot_ms++;
+                if (arp_rot_ms >= rot_period_ms) {
+                    arp_rot_ms = 0u;
+                    arp_rot_offset = (uint8_t)((arp_rot_offset + 1u) % rot_total);
+                }
+            } else {
+                arp_rot_ms = 0u;
+                arp_rot_offset = 0u;
+            }
             arp_tick_us += 1000u;
             if (arp_tick_us >= rate_us) {
-                uint32_t total = n_notes * octs, idx = 0u;
+                uint32_t total = is_rot ? rot_total : (n_notes * octs), idx = 0u;
                 uint32_t step_idx = arp_pos;
                 uint8_t dens = set.arp_density < 10u ? 100u : (set.arp_density > 100u ? 100u : set.arp_density);
                 uint8_t acc = set.arp_accent > 100u ? 35u : set.arp_accent;
@@ -1412,6 +1434,8 @@ void app_tick(void)
                     uint32_t cyc = (total - 1u) * 2u;
                     uint32_t p = arp_pos % cyc;
                     idx = p < total ? p : cyc - p;
+                } else if (is_rot) {
+                    idx = (arp_pos + (uint32_t)arp_rot_offset) % total;
                 } else {
                     idx = arp_pos % total;
                 }
@@ -1424,8 +1448,9 @@ void app_tick(void)
                         base_n = notes_ord[oidx % n_ord];
                         pick_oct = (uint8_t)(oidx / n_ord);
                     } else {
-                        base_n = notes_sorted[idx % n_notes];
-                        pick_oct = (uint8_t)(idx / n_notes);
+                        uint32_t pool_len = is_rot ? rot_n : n_notes;
+                        base_n = notes_sorted[idx % pool_len];
+                        pick_oct = (uint8_t)(idx / pool_len);
                     }
                     if (acc == 0u) vel = 106u;
                     else if ((step_idx & 3u) == 0u) vel = (uint8_t)(90u + ((uint32_t)acc * 37u) / 100u);
@@ -1437,9 +1462,13 @@ void app_tick(void)
                 }
             }
         }
-    } else if (arp_cur_note >= 0) {
-        sf_dsp_note_off((uint8_t)arp_cur_note);
-        arp_cur_note = -1;
+    } else {
+        arp_rot_ms = 0u;
+        arp_rot_offset = 0u;
+        if (arp_cur_note >= 0) {
+            sf_dsp_note_off((uint8_t)arp_cur_note);
+            arp_cur_note = -1;
+        }
     }
 }
 
@@ -1472,6 +1501,7 @@ static struct {
     uint32_t boot_until;
     uint8_t boot_act;
     uint8_t boot_jingle;
+    uint8_t boot_weather;
     char boot_preset_name[16];
     uint8_t redraw;
     uint32_t prev_btn;
@@ -1988,8 +2018,8 @@ static void knob_label_val(uint8_t k, char lbl[16], char val[16], int32_t *pct)
     } else if (ui.page == PAGE_HOME && sub == 1u) {
         if (k == 0u) { text_copy(lbl, "SYNTH LVL", 16u); int_text(set.synth_vol, val); text_cat(val, "%"); *pct = set.synth_vol; }
         else if (k == 1u) { text_copy(lbl, "KICK DUCK", 16u); int_text(set.duck_amt, val); text_cat(val, "%"); *pct = set.duck_amt; }
-        else if (k == 2u) { text_copy(lbl, "DRM LVL", 16u); int_text(set.drum_vol, val); text_cat(val, "%"); *pct = set.drum_vol; }
-        else { text_copy(lbl, "DUCK SRC", 16u); text_copy(val, DRUM_NAMES[set.duck_src % SF_DRUM_VOICES], 16u); *pct = ((int32_t)(set.duck_src % SF_DRUM_VOICES) * 100) / 7; }
+        else if (k == 2u) { text_copy(lbl, "DUCK SRC", 16u); text_copy(val, DRUM_NAMES[set.duck_src % SF_DRUM_VOICES], 16u); *pct = ((int32_t)(set.duck_src % SF_DRUM_VOICES) * 100) / 7; }
+        else { text_copy(lbl, "DRM LVL", 16u); int_text(set.drum_vol, val); text_cat(val, "%"); *pct = set.drum_vol; }
     } else {
         if (k == 0u) { text_copy(lbl, "CUTOFF 1", 16u); fmt_hz_0_127(p->f1_cut, val); *pct = ((int32_t)p->f1_cut * 100) / 127; }
         else if (k == 1u) { text_copy(lbl, "RESO 1", 16u); fmt_dec1(5u + ((uint32_t)p->f1_res * 175u) / 127u, "", val); *pct = ((int32_t)p->f1_res * 100) / 127; }
@@ -2209,8 +2239,8 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
     } else if (ui.page == PAGE_HOME && sub == 1u) {
         if (k == 0u) set.synth_vol = (uint8_t)clamp((int32_t)set.synth_vol + d * 4, 0, 100);
         else if (k == 1u) set.duck_amt = (uint8_t)clamp((int32_t)set.duck_amt + d * 4, 0, 100);
-        else if (k == 2u) set.drum_vol = (uint8_t)clamp((int32_t)set.drum_vol + d * 4, 0, 100);
-        else set.duck_src = (uint8_t)(((int32_t)set.duck_src + d + 16) % 8);
+        else if (k == 2u) set.duck_src = (uint8_t)(((int32_t)set.duck_src + d + 16) % 8);
+        else set.drum_vol = (uint8_t)clamp((int32_t)set.drum_vol + d * 4, 0, 100);
     } else {
         if (k == 0u) p->f1_cut = (uint8_t)clamp((int32_t)p->f1_cut + d * 3, 0, 127);
         else if (k == 1u) p->f1_res = (uint8_t)clamp((int32_t)p->f1_res + d * 4, 0, 127);
@@ -3303,7 +3333,81 @@ static void draw_boot_splash(uint32_t now)
         cv_text(170, 106 - h2, &FONT_B, "*", COL_GREEN);
     }
 
-    /* 2. Boot Footer Plate (y: 186..240) */
+    /* 2. Cute Animated Weather Overlay (4 random modes: SNOW / RAIN / SHINE / WIND) */
+    {
+        uint8_t w = ui.boot_weather & 3u;
+        if (w == 0u) {
+            /* SNOW: cute sky cloud + drifting snowflakes + frost sparkles */
+            fill_circle(204, 22, 8, RGB(226, 232, 240));
+            fill_circle(214, 19, 10, RGB(248, 250, 252));
+            fill_circle(224, 22, 7, RGB(226, 232, 240));
+            for (i = 0; i < 16; i++) {
+                int32_t fx = ((i * 41 + 13) + (int32_t)(fm_sinf(t * 1.9f + (float)i) * 9.0f)) % 236;
+                int32_t fy = ((i * 29) + (int32_t)(t * (22.0f + (float)(i % 3) * 8.0f))) % 180;
+                if (fx < 2) fx += 236;
+                if ((i & 3) == 0) {
+                    cv_rect(fx - 2, fy, 5, 1, C_WHITE);
+                    cv_rect(fx, fy - 2, 1, 5, C_WHITE);
+                } else {
+                    cv_rect(fx, fy, 2, 2, RGB(224, 242, 254));
+                }
+            }
+        } else if (w == 1u) {
+            /* RAIN: cute rain cloud + slanted raindrops + puddle ripples */
+            fill_circle(202, 22, 9, RGB(100, 116, 139));
+            fill_circle(213, 18, 11, RGB(148, 163, 184));
+            fill_circle(224, 22, 8, RGB(100, 116, 139));
+            for (i = 0; i < 16; i++) {
+                int32_t rx = ((i * 37 + 15) - (int32_t)(t * 28.0f)) % 236;
+                int32_t ry = ((i * 23) + (int32_t)(t * 115.0f)) % 176;
+                if (rx < 4) rx += 232;
+                cv_line(rx, ry, rx - 3, ry + 7, RGB(103, 232, 249));
+            }
+            for (i = 0; i < 3; i++) {
+                int32_t px = 44 + i * 74;
+                int32_t r = 4 + (((int32_t)(t * 16.0f) + i * 5) % 9);
+                stroke_circle(px, 178, r, 1, RGB(56, 189, 248));
+            }
+        } else if (w == 2u) {
+            /* SHINE: cheerful sun with animated beams + warm golden sparkles */
+            int32_t sx = 212, sy = 24;
+            fill_circle(sx, sy, 10, RGB(251, 191, 36));
+            fill_circle(sx, sy, 7, RGB(253, 224, 71));
+            for (i = 0; i < 8; i++) {
+                float ang = (float)i * (FM_TWO_PI * 0.125f) + t * 0.85f;
+                float r1 = 13.0f, r2 = (i & 1) ? 18.0f : 21.0f;
+                int32_t x1 = sx + (int32_t)(fm_cosf(ang) * r1);
+                int32_t y1 = sy + (int32_t)(fm_sinf(ang) * r1);
+                int32_t x2 = sx + (int32_t)(fm_cosf(ang) * r2);
+                int32_t y2 = sy + (int32_t)(fm_sinf(ang) * r2);
+                cv_line(x1, y1, x2, y2, RGB(253, 224, 71));
+            }
+            for (i = 0; i < 5; i++) {
+                int32_t gx = 28 + i * 44;
+                int32_t gy = 26 + ((i * 31) % 72);
+                if ((((int32_t)(t * 4.0f) + i) & 1) == 0) {
+                    cv_rect(gx - 3, gy, 7, 1, RGB(254, 240, 138));
+                    cv_rect(gx, gy - 3, 1, 7, RGB(254, 240, 138));
+                }
+            }
+        } else {
+            /* WIND: sweeping breeze curls + fluttering pastel leaves */
+            for (i = 0; i < 3; i++) {
+                int32_t wx = ((int32_t)(t * (85.0f + (float)i * 22.0f)) + i * 82) % 270 - 30;
+                int32_t wy = 24 + i * 44;
+                cv_line(wx, wy, wx + 28, wy - 2, RGB(165, 243, 252));
+                stroke_circle(wx + 31, wy - 5, 4, 1, RGB(165, 243, 252));
+            }
+            for (i = 0; i < 7; i++) {
+                int32_t lx = ((int32_t)(t * (68.0f + (float)(i % 3) * 18.0f)) + i * 37) % 246 - 6;
+                int32_t ly = 22 + ((i * 29) % 130) + (int32_t)(fm_sinf(t * 4.2f + (float)i) * 8.0f);
+                uint16_t lc = (i & 1) ? RGB(52, 211, 153) : RGB(251, 146, 60);
+                fill_ellipse(lx, ly, 3, 2, lc);
+            }
+        }
+    }
+
+    /* 3. Boot Footer Plate (y: 186..240) */
     cv_rect(0, 186, 240, 54, RGB(9, 13, 22));
     cv_rect(0, 186, 240, 1, COL_CYAN_DIM);
 
@@ -3313,7 +3417,9 @@ static void draw_boot_splash(uint32_t now)
         int32_t tw = text_w(&FONT_S, foot2);
         cv_text((240 - tw) / 2, 191, &FONT_S, foot2, COL_CYAN);
     }
-    text_copy(foot2, JINGLE_NAMES[jidx], sizeof(foot2));
+    text_copy(foot2, WEATHER_NAMES[ui.boot_weather & 3u], sizeof(foot2));
+    text_cat(foot2, " | ");
+    text_cat(foot2, JINGLE_NAMES[jidx]);
     text_cat(foot2, " | ");
     text_cat(foot2, ui.boot_preset_name[0] ? ui.boot_preset_name : set.patch.name);
     {
@@ -3808,22 +3914,31 @@ static void draw_center_stage(uint32_t now, float rms)
     if (p == PAGE_ENV) {
         draw_env_curve_view(now);
     } else if (p == PAGE_ARP) {
-        static const uint8_t PAT_H[6][8] = {
+        static const uint8_t PAT_H[SF_NARP_MODE][8] = {
             {6, 11, 16, 21, 26, 30, 34, 38},
             {38, 32, 26, 21, 16, 12, 8, 5},
             {8, 17, 26, 36, 30, 21, 14, 8},
             {23, 10, 34, 15, 30, 7, 27, 19},
             {12, 18, 14, 20, 26, 21, 28, 34},
-            {16, 28, 10, 34, 22, 14, 30, 20}
+            {16, 28, 10, 34, 22, 14, 30, 20},
+            {8, 15, 22, 30, 36, 28, 20, 13},
+            {8, 16, 24, 33, 38, 29, 20, 12},
+            {10, 18, 26, 35, 38, 30, 22, 14}
         };
-        const uint8_t *hs = PAT_H[set.arp_mode % SF_NARP_MODE];
+        uint8_t am = set.arp_mode % SF_NARP_MODE;
+        const uint8_t *hs = PAT_H[am];
+        uint32_t rot_shift = 0u;
+        if (am >= SF_ARP_ROT_S) {
+            uint32_t rp = (am == SF_ARP_ROT_S) ? 2400u : (am == SF_ARP_ROT_M) ? 750u : 220u;
+            rot_shift = (now / rp) & 7u;
+        }
         uint32_t beat = (now / (15000u / (set.bpm < 40u ? 40u : set.bpm))) & 7u;
         int32_t gw = 10 + ((int32_t)(set.arp_gate - 20u) * 8) / 75;
         char info[32], nb[6];
         cv_rect(10, 88, 66, 18, COL_GRN_DIM);
         cv_text(14, 91, &FONT_XS, set.arp_latch ? "LATCH" : (arp_active ? "ARP ON" : "ARP OFF"),
                 set.arp_latch ? COL_AMBER : (arp_active ? COL_GREEN : COL_MUTED));
-        text_copy(info, ARP_MODE_NAMES[set.arp_mode % SF_NARP_MODE], sizeof(info));
+        text_copy(info, ARP_MODE_NAMES[am], sizeof(info));
         text_cat(info, "|");
         text_cat(info, ARP_RATE_NAMES[set.arp_rate % SF_NARP_RATE]);
         text_cat(info, "|D");
@@ -3835,7 +3950,7 @@ static void draw_center_stage(uint32_t now, float rms)
             uint8_t is_downbeat = ((i & 3) == 0) ? 1u : 0u;
             uint8_t dropped = (!is_downbeat && ((uint32_t)((i * 37 + 19) % 100) >= (uint32_t)set.arp_density)) ? 1u : 0u;
             int32_t acc_boost = is_downbeat ? ((int32_t)set.arp_accent * 7) / 100 : -(((int32_t)set.arp_accent * 4) / 100);
-            int32_t bh = hs[i] + (int32_t)set.arp_octs * 2 + acc_boost;
+            int32_t bh = hs[((uint32_t)i + rot_shift) & 7u] + (int32_t)set.arp_octs * 2 + acc_boost;
             if (bh < 5) bh = 5;
             if (bh > 46) bh = 46;
             uint8_t is_b = (arp_active && (uint32_t)i == beat) ? 1u : 0u;
@@ -4456,6 +4571,7 @@ void app_ui_init(void)
     mem_zero(&ui, (uint32_t)sizeof(ui));
     ui.boot_act = (uint8_t)((now + xorshift32()) % 6u);
     ui.boot_jingle = (uint8_t)((now + (xorshift32() >> 3)) % 6u);
+    ui.boot_weather = (uint8_t)((now ^ (xorshift32() >> 7)) % 4u);
     rp_idx = (uint8_t)((now ^ (xorshift32() >> 5)) % 6u);
     jb = set.recent_presets[rp_idx][0] % 10u;
     jp = (uint8_t)(set.recent_presets[rp_idx][1] % bank_len(jb));

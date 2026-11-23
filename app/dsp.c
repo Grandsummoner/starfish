@@ -327,6 +327,7 @@ static struct {
     float vis_rms_f;
     float pitch_bend_targ, pitch_bend_cur;
     float mod_wheel_targ, mod_wheel_cur;
+    float s_lvl_cur;
 } dsp;
 
 static void init_wavetable_lut(void)
@@ -435,6 +436,7 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
         dsp.vis.scope[i] = 0;
     dsp.pitch_bend_targ = dsp.pitch_bend_cur = 0.0f;
     dsp.mod_wheel_targ = dsp.mod_wheel_cur = 0.0f;
+    dsp.s_lvl_cur = -1.0f;
 }
 
 void sf_dsp_set_cfg(sf_engine_cfg_t *cfg)
@@ -799,7 +801,7 @@ static PLAT_RAM_CODE float eval_lfo(float ph, uint8_t shape)
 }
 
 /* ----------------------------------------------------- Drum synthesis --- */
-static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_send, uint32_t n)
+static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, uint32_t n)
 {
     uint32_t v, i;
     uint8_t kit = dsp.cfg ? dsp.cfg->drum_kit : 0u;
@@ -817,7 +819,6 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
     static const float C_HZ[SF_DRUM_KITS]    = {1180.0f, 1760.0f, 2250.0f, 1380.0f, 2020.0f, 1620.0f, 1150.0f, 2150.0f, 980.0f, 1860.0f};
 
     if (kit >= SF_DRUM_KITS) kit = 0u;
-    float room_amt = (bus == SF_BUS_ROOM) ? 0.36f : (kit == 6u ? 0.14f : 0.06f);
 
     for (v = 0; v < SF_DRUM_VOICES; v++) {
         drum_voice_t *d = &dsp.drums[v];
@@ -973,8 +974,6 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
             d->last_s = s;
             out_l[i] += s * pl_g;
             out_r[i] += s * pr_g;
-            if (rev_send && v > 0u)
-                rev_send[i] += s * room_amt;
 
             d->env *= dec_amp;
             d->pitch_env *= dec_p;
@@ -987,7 +986,6 @@ static PLAT_RAM_CODE void render_drums(float *out_l, float *out_r, float *rev_se
 /* --------------------------------------------------- Main render block --- */
 static float block_l[256] PLAT_POOL;
 static float block_r[256] PLAT_POOL;
-static float drum_rev[256] PLAT_POOL;
 
 static PLAT_RAM_CODE void step_boot_jingle(uint32_t n)
 {
@@ -1045,7 +1043,6 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     for (i = 0; i < n; i++) {
         block_l[i] = 0.0f;
         block_r[i] = 0.0f;
-        drum_rev[i] = 0.0f;
     }
     uint32_t drum_cnt = 0u;
     for (v = 0; v < SF_DRUM_VOICES; v++)
@@ -1345,25 +1342,26 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float patch_g = dsp.jingle_active ? 1.0f : sf_ram_exp2f(sf_clamp((float)cfg->patch_gain_db, -12.0f, 12.0f) * 0.1660964f);
         float s_lvl = sf_clamp((float)cfg->synth_vol * 0.01f, 0.0f, 1.0f) * patch_g;
         float duck_amt_f = sf_clamp((float)cfg->duck_amt * 0.01f, 0.0f, 1.0f);
+        if (dsp.s_lvl_cur < 0.0f)
+            dsp.s_lvl_cur = s_lvl;
         if (dsp.duck_trig) {
             dsp.duck_atk_rem = 176u;
             dsp.duck_trig = 0u;
         }
         for (i = 0; i < n; i++) {
+            dsp.s_lvl_cur += (s_lvl - dsp.s_lvl_cur) * 0.008f;
             if (dsp.duck_atk_rem > 0u) {
                 dsp.duck_env += (1.0f - dsp.duck_env) * 0.025f;
                 dsp.duck_atk_rem--;
             } else {
                 dsp.duck_env = sf_flush(dsp.duck_env * 0.999874f);
             }
-            float sg = s_lvl * (1.0f - dsp.duck_env * duck_amt_f * 0.92f);
+            float sg = dsp.s_lvl_cur * (1.0f - dsp.duck_env * duck_amt_f * 0.92f);
             block_l[i] *= sg;
             block_r[i] *= sg;
         }
         dsp.vis.duck_pct = (uint8_t)sf_clamp(dsp.duck_env * duck_amt_f * 100.0f, 0.0f, 100.0f);
     }
-
-    render_drums(block_l, block_r, drum_rev, n);
 
     float chor_mix = sf_clamp((float)p->fx_chorus * 0.01f
         + (l1d == SF_LFO_CHORUS ? lfo1 * 0.4f : 0.0f) + (l2d == SF_LFO_CHORUS ? lfo2 * 0.3f : 0.0f), 0.0f, 1.0f);
@@ -1399,7 +1397,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     uint8_t want_phas = (phas_mix > 0.02f) ? 1u : 0u;
     uint8_t want_chor = (chor_mix > 0.02f) ? 1u : 0u;
     uint8_t want_del = (del_mix > 0.01f) ? 1u : 0u;
-    uint8_t want_rev = (rev_mix > 0.02f || cfg->drum_bus == SF_BUS_ROOM) ? 1u : 0u;
+    uint8_t want_rev = (rev_mix > 0.02f) ? 1u : 0u;
     uint8_t do_phas = (want_phas || dsp.phas_energy > 0.0005f) ? 1u : 0u;
     uint8_t do_chor = (want_chor || dsp.chor_energy > 0.0005f) ? 1u : 0u;
     uint8_t do_del = (want_del || dsp.del_energy > 0.0005f) ? 1u : 0u;
@@ -1556,7 +1554,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 dsp.rev_mod_ph = fast_wrap01(dsp.rev_mod_ph + 0.72f * INV_SR * 16.0f);
                 rev_mod = sf_ram_sin_turns(dsp.rev_mod_ph) * 0.03f;
             }
-            float pre_in = ((xl + xr) * 0.5f + del_rev_feed) * rev_mix + drum_rev[i];
+            float pre_in = ((xl + xr) * 0.5f + del_rev_feed) * rev_mix;
             float mono = (float)rev_pre[dsp.rev_pre_i] * (1.0f / 8192.0f);
             rev_pre[dsp.rev_pre_i] = (int16_t)(sf_clamp(pre_in, -3.5f, 3.5f) * 8192.0f);
             if (++dsp.rev_pre_i >= REV_PRE) dsp.rev_pre_i = 0u;
@@ -1603,6 +1601,17 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             xl += rev_out_l;
             xr += rev_out_r;
         }
+
+        block_l[i] = xl;
+        block_r[i] = xr;
+    }
+
+    /* Mix dry punchy drums AFTER synth FX chain so only synth engine goes to FX */
+    render_drums(block_l, block_r, n);
+
+    for (i = 0; i < n; i++) {
+        float xl = block_l[i];
+        float xr = block_r[i];
 
         if (dsp.click_amp > 0.001f) {
             float clk = sf_ram_sin_turns(dsp.click_ph) * dsp.click_amp;

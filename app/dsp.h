@@ -10,7 +10,9 @@
 
 enum {
     SF_ARP_UP = 0, SF_ARP_DN = 1, SF_ARP_UPDN = 2, SF_ARP_RND = 3,
-    SF_ARP_RND_WALK = 4, SF_ARP_ORDER = 5, SF_NARP_MODE = 6
+    SF_ARP_RND_WALK = 4, SF_ARP_ORDER = 5,
+    SF_ARP_ROT_S = 6, SF_ARP_ROT_M = 7, SF_ARP_ROT_F = 8,
+    SF_NARP_MODE = 9
 };
 #define SF_NARP_RATE 10u
 
