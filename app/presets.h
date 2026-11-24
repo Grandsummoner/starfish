@@ -89,6 +89,55 @@ typedef struct {
 
 _Static_assert(sizeof(sf_preset_t) == 64u, "sf_preset_t size must remain 64B");
 
+static inline __attribute__((always_inline)) uint8_t sf_cat(const sf_preset_t *p) { return p->cat & 0x0Fu; }
+static inline __attribute__((always_inline)) int8_t sf_tilt_eq(const sf_preset_t *p)
+{
+    uint8_t idx = (uint8_t)(((p->cat >> 4) & 0x0Fu) ^ 7u);
+    if (idx > 14u) idx = 14u;
+    return (int8_t)((int32_t)idx - 7);
+}
+static inline __attribute__((always_inline)) void sf_set_tilt_eq(sf_preset_t *p, int32_t v)
+{
+    int32_t cl = v < -7 ? -7 : (v > 7 ? 7 : v);
+    uint8_t raw = (uint8_t)(((uint32_t)(cl + 7) ^ 7u) & 0x0Fu);
+    p->cat = (uint8_t)((p->cat & 0x0Fu) | (raw << 4));
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_ms_width_idx(const sf_preset_t *p)
+{
+    uint8_t raw = (uint8_t)(((p->osc_meta >> 6) & 3u) | (((p->unison_poly >> 6) & 3u) << 2));
+    return (uint8_t)((raw ^ 8u) & 0x0Fu);
+}
+static inline __attribute__((always_inline)) uint16_t sf_ms_width_pct(const sf_preset_t *p)
+{
+    static const uint8_t LUT[16] = {0u, 15u, 30u, 45u, 60u, 75u, 85u, 95u, 100u, 115u, 130u, 145u, 160u, 175u, 190u, 200u};
+    return (uint16_t)LUT[sf_ms_width_idx(p) & 0x0Fu];
+}
+static inline __attribute__((always_inline)) void sf_set_ms_width_idx(sf_preset_t *p, int32_t idx)
+{
+    int32_t cl = idx < 0 ? 0 : (idx > 15 ? 15 : idx);
+    uint8_t raw = (uint8_t)(((uint32_t)cl ^ 8u) & 0x0Fu);
+    p->osc_meta = (uint8_t)((p->osc_meta & 0x3Fu) | ((raw & 3u) << 6));
+    p->unison_poly = (uint8_t)((p->unison_poly & 0x3Fu) | (((raw >> 2) & 3u) << 6));
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_punch_idx(const sf_preset_t *p)
+{
+    return (uint8_t)(((p->lfo1_meta >> 6) & 3u) | (((p->lfo2_meta >> 6) & 3u) << 2));
+}
+static inline __attribute__((always_inline)) uint8_t sf_punch_pct(const sf_preset_t *p)
+{
+    uint32_t raw = sf_punch_idx(p);
+    return (uint8_t)((raw * 100u + 7u) / 15u);
+}
+static inline __attribute__((always_inline)) void sf_set_punch_idx(sf_preset_t *p, int32_t idx)
+{
+    int32_t cl = idx < 0 ? 0 : (idx > 15 ? 15 : idx);
+    uint8_t raw = (uint8_t)((uint32_t)cl & 0x0Fu);
+    p->lfo1_meta = (uint8_t)((p->lfo1_meta & 0x3Fu) | ((raw & 3u) << 6));
+    p->lfo2_meta = (uint8_t)((p->lfo2_meta & 0x3Fu) | (((raw >> 2) & 3u) << 6));
+}
+
 static inline __attribute__((always_inline)) uint8_t sf_osc_mode(const sf_preset_t *p) { return p->osc_meta & 7u; }
 static inline __attribute__((always_inline)) uint8_t sf_osc_sync(const sf_preset_t *p) { return (p->osc_meta >> 3) & 1u; }
 static inline __attribute__((always_inline)) uint8_t sf_sub_wave(const sf_preset_t *p) { return (p->osc_meta >> 4) & 3u; }

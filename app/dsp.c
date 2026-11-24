@@ -227,6 +227,7 @@ typedef struct {
     float flt_env;
     float pitch_cur;
     float vel_g_cur;
+    float punch_env;
     float last_l, last_r;
     float click_l, click_r;
     svf_t f1l;
@@ -328,6 +329,7 @@ static struct {
     float pitch_bend_targ, pitch_bend_cur;
     float mod_wheel_targ, mod_wheel_cur;
     float s_lvl_cur;
+    float tilt_lp_l, tilt_lp_r;
 } dsp;
 
 static void init_wavetable_lut(void)
@@ -412,6 +414,15 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     dsp.duck_atk_rem = 0u;
     dsp.duck_trig = 0u;
     dsp.vis.duck_pct = 0u;
+    dsp.vis.mod_cut1 = 86u;
+    dsp.vis.mod_cut2 = 112u;
+    dsp.vis.mod_res1_pct = 20u;
+    dsp.vis.amp_env_pct = 0u;
+    dsp.vis.amp_st = ENV_OFF;
+    dsp.vis.flt_env_pct = 0u;
+    dsp.vis.flt_st = ENV_OFF;
+    dsp.vis.del_lvl_pct = 0u;
+    dsp.vis.rev_lvl_pct = 0u;
     dsp.del_clr_rem = 0u;
     dsp.rev_cleared = 1u;
     dsp.jingle_active = 0u;
@@ -437,6 +448,7 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     dsp.pitch_bend_targ = dsp.pitch_bend_cur = 0.0f;
     dsp.mod_wheel_targ = dsp.mod_wheel_cur = 0.0f;
     dsp.s_lvl_cur = -1.0f;
+    dsp.tilt_lp_l = dsp.tilt_lp_r = 0.0f;
 }
 
 void sf_dsp_set_cfg(sf_engine_cfg_t *cfg)
@@ -512,8 +524,15 @@ void sf_dsp_panic(void)
     dsp.duck_atk_rem = 0u;
     dsp.duck_trig = 0u;
     dsp.vis.duck_pct = 0u;
+    dsp.vis.amp_env_pct = 0u;
+    dsp.vis.amp_st = ENV_OFF;
+    dsp.vis.flt_env_pct = 0u;
+    dsp.vis.flt_st = ENV_OFF;
+    dsp.vis.del_lvl_pct = 0u;
+    dsp.vis.rev_lvl_pct = 0u;
     dsp.pitch_bend_targ = dsp.pitch_bend_cur = 0.0f;
     dsp.mod_wheel_targ = dsp.mod_wheel_cur = 0.0f;
+    dsp.tilt_lp_l = dsp.tilt_lp_r = 0.0f;
     plat_unlock(f);
 }
 
@@ -669,6 +688,7 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
     v->age = ++dsp.voice_age;
     v->amp_st = ENV_ATK;
     v->flt_st = ENV_ATK;
+    v->punch_env = 1.0f;
     dsp.last_pitch_note = (float)note;
     if (!is_jingle)
         dsp.last_note = (int32_t)note;
@@ -1083,8 +1103,9 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
     float cut1_base = byte_to_hz(p->f1_cut);
     float cut2_base = byte_to_hz(p->f2_cut);
-    float q1 = sf_clamp(byte_to_reso_q(p->f1_res) + mod_reso * 5.0f, 0.5f, 18.0f);
-    float q2 = sf_clamp(byte_to_reso_q(p->f2_res), 0.5f, 18.0f);
+    float reso_mod_amt = sf_clamp(mod_reso * 3.8f, -3.5f, 3.8f);
+    float q1 = sf_clamp(byte_to_reso_q(p->f1_res) + reso_mod_amt, 0.5f, 15.5f);
+    float q2 = sf_clamp(byte_to_reso_q(p->f2_res), 0.5f, 15.5f);
     float fenv_oct = (float)p->f1_env_s * 0.055f;
     float kf_amt = (float)p->f_keyfollow * 0.01f;
     float f_bal = (float)p->f_bal * 0.01f;
@@ -1109,7 +1130,10 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     uint8_t sat_mode = sf_sat_mode(p);
     uint8_t unison = sf_unison(p);
     float drive = 1.0f + (float)p->fx_drive * 0.032f;
-    float trem = sf_clamp(1.0f + mod_amp * 0.45f, 0.1f, 1.3f);
+    float amp_d = sf_clamp(((l1d == SF_LFO_AMP ? (float)p->lfo1_depth : 0.0f)
+                          + (l2d == SF_LFO_AMP ? (float)p->lfo2_depth : 0.0f)) * 0.0038f, 0.0f, 0.42f);
+    float trem = sf_clamp((1.0f - amp_d) + mod_amp * 0.36f, 0.16f, 1.0f);
+    float punch_amt = dsp.jingle_active ? 0.0f : (float)sf_punch_pct(p) * 0.01f;
     float uni_pan_norm = (float)p->uni_pan * 0.01f;
     float glide_coeff = (p->glide == 0u) ? 1.0f : sf_clamp(1.0f - (float)p->glide * 0.0108f, 0.03f, 0.9f);
     dsp.pitch_bend_cur += (dsp.pitch_bend_targ - dsp.pitch_bend_cur) * 0.35f;
@@ -1117,6 +1141,10 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     /* Adaptive CPU load shedding when polyphonic synth chords + drum machine run together */
     uint8_t lite_hyper = (active_cnt + (drum_cnt > 0u ? 1u : 0u) >= 4u) ? 1u : 0u;
     uint8_t skip_blep = (active_cnt >= 5u || (active_cnt >= 3u && drum_cnt >= 2u)) ? 1u : 0u;
+    uint32_t vis_age = 0u;
+    int32_t vis_v = -1;
+    float vis_c1_oct = mod_cut1 * 2.5f + dsp.mod_wheel_cur * 3.2f;
+    float vis_c2_oct = mod_cut2 * 2.5f + dsp.mod_wheel_cur * 1.8f;
 
     for (v = 0; v < SF_MAX_VOICES; v++) {
         va_voice_t *vc = &dsp.voices[v];
@@ -1125,7 +1153,8 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             continue;
 
         vc->pitch_cur += ((float)vc->note - vc->pitch_cur) * glide_coeff;
-        float note_f = vc->pitch_cur + (float)p->oct * 12.0f + mod_pitch * 1.5f + dsp.pitch_bend_cur;
+        float punch_cur = vc->punch_env * punch_amt;
+        float note_f = vc->pitch_cur + (float)p->oct * 12.0f + mod_pitch * 1.5f + dsp.pitch_bend_cur + punch_cur * 2.1f;
         float f0 = 440.0f * sf_ram_exp2f((note_f - 69.0f) * (1.0f / 12.0f));
         float dt1 = sf_clamp(f0 * INV_SR, 0.0001f, 0.45f);
         float dt2 = sf_clamp(f0 * osc2_ratio * INV_SR, 0.0001f, 0.45f);
@@ -1134,14 +1163,22 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float kf_oct = ((vc->pitch_cur - 60.0f) * (1.0f / 12.0f)) * kf_amt;
         float vel_norm = (float)vc->vel * (1.0f / 127.0f);
         float vel_cut = (vel_norm - 0.55f) * 1.15f;
-        float cut_scale = sf_ram_exp2f(mod_cut1 * 2.5f + (vc->flt_env * fenv_oct) + kf_oct + vel_cut + ((float)vc->prs * (1.0f / 127.0f)) * 1.4f + dsp.mod_wheel_cur * 3.2f);
+        float c1_oct = mod_cut1 * 2.5f + (vc->flt_env * fenv_oct) + kf_oct + vel_cut + ((float)vc->prs * (1.0f / 127.0f)) * 1.4f + dsp.mod_wheel_cur * 3.2f + punch_cur * 1.35f;
+        float cut_scale = sf_ram_exp2f(c1_oct);
         float cut1_hz = sf_clamp(cut1_base * cut_scale, 40.0f, 12500.0f);
         float g1 = sf_clamp(3.14159f * cut1_hz * INV_SR, 0.0028f, 0.89f);
         float hf1 = sf_clamp((cut1_hz - 7500.0f) * (1.0f / 5000.0f), 0.0f, 1.0f);
         float q1_eff = q1 * (1.0f - hf1 * 0.65f);
         if (q1_eff < 0.5f) q1_eff = 0.5f;
 
-        float cut2_hz = sf_clamp(cut2_base * sf_ram_exp2f(mod_cut2 * 2.5f + kf_oct * 0.5f + vel_cut * 0.4f + dsp.mod_wheel_cur * 1.8f), 40.0f, 12500.0f);
+        float c2_oct = mod_cut2 * 2.5f + kf_oct * 0.5f + vel_cut * 0.4f + dsp.mod_wheel_cur * 1.8f;
+        float cut2_hz = sf_clamp(cut2_base * sf_ram_exp2f(c2_oct), 40.0f, 12500.0f);
+        if (vc->age >= vis_age) {
+            vis_age = vc->age;
+            vis_v = (int32_t)v;
+            vis_c1_oct = c1_oct;
+            vis_c2_oct = c2_oct;
+        }
         float g2 = sf_clamp(3.14159f * cut2_hz * INV_SR, 0.0028f, 0.89f);
         float hf2 = sf_clamp((cut2_hz - 7500.0f) * (1.0f / 5000.0f), 0.0f, 1.0f);
         float q2_eff = q2 * (1.0f - hf2 * 0.65f);
@@ -1322,7 +1359,9 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             }
 
             vc->vel_g_cur += (vel_g - vc->vel_g_cur) * 0.02f;
-            float g = vc->amp_env * vc->vel_g_cur;
+            float punch_gain = 1.0f + vc->punch_env * punch_amt * 0.45f;
+            vc->punch_env = sf_flush(vc->punch_env * 0.9968f);
+            float g = vc->amp_env * vc->vel_g_cur * punch_gain;
             float outl = sig_l * g;
             float outr = sig_r * g;
             if (vc->click_rem > 0u) {
@@ -1363,14 +1402,20 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         dsp.vis.duck_pct = (uint8_t)sf_clamp(dsp.duck_env * duck_amt_f * 100.0f, 0.0f, 100.0f);
     }
 
-    float chor_mix = sf_clamp((float)p->fx_chorus * 0.01f
-        + (l1d == SF_LFO_CHORUS ? lfo1 * 0.4f : 0.0f) + (l2d == SF_LFO_CHORUS ? lfo2 * 0.3f : 0.0f), 0.0f, 1.0f);
-    float phas_mix = sf_clamp((float)p->fx_phaser * 0.01f
-        + (l1d == SF_LFO_PHASER ? lfo1 * 0.4f : 0.0f) + (l2d == SF_LFO_PHASER ? lfo2 * 0.3f : 0.0f), 0.0f, 1.0f);
+    float chor_swing = ((l1d == SF_LFO_CHORUS ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_CHORUS ? (float)p->lfo2_depth : 0.0f)) * 0.0020f;
+    float phas_swing = ((l1d == SF_LFO_PHASER ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_PHASER ? (float)p->lfo2_depth : 0.0f)) * 0.0022f;
+    float del_swing  = ((l1d == SF_LFO_DELAY  ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_DELAY  ? (float)p->lfo2_depth : 0.0f)) * 0.0022f;
+    float rev_swing  = ((l1d == SF_LFO_REVERB ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_REVERB ? (float)p->lfo2_depth : 0.0f)) * 0.0024f;
+
+    float chor_mix = sf_clamp((float)p->fx_chorus * 0.0065f - sf_clamp(chor_swing * 0.45f, 0.0f, 0.20f)
+        + (l1d == SF_LFO_CHORUS ? lfo1 * 0.22f : 0.0f) + (l2d == SF_LFO_CHORUS ? lfo2 * 0.16f : 0.0f), 0.0f, 0.68f);
+    float phas_mix = sf_clamp((float)p->fx_phaser * 0.0085f - sf_clamp(phas_swing * 0.40f, 0.0f, 0.18f)
+        + (l1d == SF_LFO_PHASER ? lfo1 * 0.24f : 0.0f) + (l2d == SF_LFO_PHASER ? lfo2 * 0.18f : 0.0f), 0.0f, 0.82f);
     float phas_hz = sf_clamp((float)p->fx_phaser_rate * 0.1f, 0.1f, 6.0f);
-    float del_fb = sf_clamp((float)p->fx_del_fb * 0.01f, 0.0f, 0.85f);
-    float del_mix = sf_clamp((float)p->fx_del_mix * 0.0086f
-        + (l1d == SF_LFO_DELAY ? lfo1 * 0.35f : 0.0f) + (l2d == SF_LFO_DELAY ? lfo2 * 0.25f : 0.0f), 0.0f, 0.85f);
+    float del_fb = sf_clamp((float)p->fx_del_fb * 0.01f, 0.0f, 0.80f);
+    float del_mix = sf_clamp((float)p->fx_del_mix * 0.0072f - sf_clamp(del_swing * 0.55f, 0.0f, 0.22f)
+        + (l1d == SF_LFO_DELAY ? lfo1 * 0.20f : 0.0f) + (l2d == SF_LFO_DELAY ? lfo2 * 0.15f : 0.0f), 0.0f, 0.68f);
+    float del_rev_feed_g = (l1d == SF_LFO_DELAY || l2d == SF_LFO_DELAY) ? 0.10f : 0.15f;
     float del_sec = 0.30f;
     if (p->fx_del_time >= 101u && p->fx_del_time <= 106u) {
         uint8_t sidx = (uint8_t)(p->fx_del_time - 101u);
@@ -1386,9 +1431,9 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         del_sec = sf_clamp((float)p->fx_del_time * 0.01f, 0.04f, 0.74f);
     }
     float del_tap_targ = sf_clamp(del_sec * 22050.0f, 400.0f, (float)(DEL_LEN - 8u));
-    float rev_mix = sf_clamp((float)p->fx_reverb * 0.0080f
-        + (l1d == SF_LFO_REVERB ? lfo1 * 0.35f : 0.0f) + (l2d == SF_LFO_REVERB ? lfo2 * 0.25f : 0.0f), 0.0f, 0.85f);
-    float rev_fb = sf_clamp(0.81f + rev_mix * 0.105f, 0.81f, 0.905f);
+    float rev_mix = sf_clamp((float)p->fx_reverb * 0.0072f - sf_clamp(rev_swing * 0.55f, 0.0f, 0.24f)
+        + (l1d == SF_LFO_REVERB ? lfo1 * 0.22f : 0.0f) + (l2d == SF_LFO_REVERB ? lfo2 * 0.16f : 0.0f), 0.0f, 0.72f);
+    float rev_fb = sf_clamp(0.80f + rev_mix * 0.095f, 0.80f, 0.895f);
 
     float phas_a = -0.48f + 0.38f * sf_ram_sin_turns(dsp.phas_ph);
     float phas_inc = phas_hz * INV_SR;
@@ -1545,7 +1590,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             del_peak += sf_fabs(dl_out) + sf_fabs(dr_out);
             xl += dl_out * del_mix;
             xr += dr_out * del_mix;
-            del_rev_feed = (dl_out + dr_out) * del_mix * 0.28f;
+            del_rev_feed = (dl_out + dr_out) * del_mix * del_rev_feed_g;
         }
 
         if (do_rev) {
@@ -1595,8 +1640,8 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             rev_a1[dsp.rev_ai[1]] = (int16_t)(sf_clamp(y0 + a1v * 0.56f, -3.5f, 3.5f) * 8192.0f);
             if (++dsp.rev_ai[1] >= REV_A1) dsp.rev_ai[1] = 0u;
 
-            float rev_out_l = (y1 + (c0 - c1) * 0.28f) * 0.98f;
-            float rev_out_r = (y1 + (c2 - c3) * 0.28f) * 0.98f;
+            float rev_out_l = (y1 + (c0 - c1) * 0.28f) * 0.78f;
+            float rev_out_r = (y1 + (c2 - c3) * 0.28f) * 0.78f;
             rev_peak += sf_fabs(rev_out_l) + sf_fabs(rev_out_r);
             xl += rev_out_l;
             xr += rev_out_r;
@@ -1604,6 +1649,36 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
         block_l[i] = xl;
         block_r[i] = xr;
+    }
+
+    /* Per-patch Tilt EQ & M/S Width stage (applied to synth bus before drums) */
+    if (!dsp.jingle_active) {
+        int32_t tilt_val = (int32_t)sf_tilt_eq(p);
+        float tilt_g = (float)tilt_val * 0.085f;
+        float w = (float)sf_ms_width_pct(p) * 0.01f;
+        float w_trim = (w > 1.0f) ? (1.0f / (1.0f + (w - 1.0f) * 0.25f)) : 1.0f;
+        if (tilt_val != 0 || sf_ms_width_pct(p) != 100u) {
+            for (i = 0; i < n; i++) {
+                float xl = block_l[i];
+                float xr = block_r[i];
+                if (tilt_val != 0) {
+                    dsp.tilt_lp_l = sf_flush(dsp.tilt_lp_l + 0.120f * (xl - dsp.tilt_lp_l));
+                    dsp.tilt_lp_r = sf_flush(dsp.tilt_lp_r + 0.120f * (xr - dsp.tilt_lp_r));
+                    float hp_l = xl - dsp.tilt_lp_l;
+                    float hp_r = xr - dsp.tilt_lp_r;
+                    xl = sf_flush(xl + tilt_g * (hp_l - dsp.tilt_lp_l));
+                    xr = sf_flush(xr + tilt_g * (hp_r - dsp.tilt_lp_r));
+                }
+                if (sf_ms_width_pct(p) != 100u) {
+                    float m = 0.5f * (xl + xr);
+                    float s = 0.5f * (xl - xr) * w * w_trim;
+                    xl = m + s;
+                    xr = m - s;
+                }
+                block_l[i] = xl;
+                block_r[i] = xr;
+            }
+        }
     }
 
     /* Mix dry punchy drums AFTER synth FX chain so only synth engine goes to FX */
@@ -1653,16 +1728,38 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         dsp.chor_energy = do_chor ? sf_flush(dsp.chor_energy * 0.85f + chor_peak * inv_n * 0.50f) : 0.0f;
         dsp.del_energy = do_del ? sf_flush(dsp.del_energy * 0.90f + del_peak * inv_n * 0.50f) : 0.0f;
         dsp.rev_energy = do_rev ? sf_flush(dsp.rev_energy * 0.90f + rev_peak * inv_n * 0.50f) : 0.0f;
+        dsp.vis.del_lvl_pct = (uint8_t)sf_clamp(dsp.del_energy * 220.0f, 0.0f, 100.0f);
+        dsp.vis.rev_lvl_pct = (uint8_t)sf_clamp(dsp.rev_energy * 220.0f, 0.0f, 100.0f);
     }
 
-    /* Update live 32-band analyzer (0..100 scale) & RMS once per audio block */
+    /* Update live 32-band analyzer, ADSR tracer, and modulated dual-filter telemetry */
     {
         float rms_inst = sf_clamp(sf_ram_sqrtf(sum_sq / (float)(n ? n : 1u)) * 3.5f, 0.0f, 1.0f);
         dsp.vis_rms_f = dsp.vis_rms_f * 0.72f + rms_inst * 0.28f;
         dsp.vis.rms_pct = (uint8_t)(dsp.vis_rms_f * 100.0f);
 
-        float c_norm = (float)p->f1_cut * (1.0f / 127.0f);
-        float r_norm = (float)p->f1_res * (1.0f / 127.0f);
+        dsp.vis.mod_cut1 = (uint8_t)sf_clamp((float)p->f1_cut + vis_c1_oct * (127.0f / 8.287712f), 0.0f, 127.0f);
+        dsp.vis.mod_cut2 = (uint8_t)sf_clamp((float)p->f2_cut + vis_c2_oct * (127.0f / 8.287712f), 0.0f, 127.0f);
+        dsp.vis.mod_res1_pct = (uint8_t)sf_clamp(((float)p->f1_res * (1.0f / 127.0f) + mod_reso * 0.45f) * 100.0f, 0.0f, 100.0f);
+        if (vis_v >= 0 && dsp.voices[vis_v].active) {
+            va_voice_t *vv = &dsp.voices[vis_v];
+            uint8_t ast = vv->amp_st;
+            uint8_t fst = vv->flt_st;
+            if (ast == ENV_DEC && sf_fabs(vv->amp_env - a_sus) < 0.015f) ast = ENV_SUS;
+            if (fst == ENV_DEC && sf_fabs(vv->flt_env - f_sus) < 0.015f) fst = ENV_SUS;
+            dsp.vis.amp_env_pct = (uint8_t)sf_clamp(vv->amp_env * 100.0f, 0.0f, 100.0f);
+            dsp.vis.amp_st = ast;
+            dsp.vis.flt_env_pct = (uint8_t)sf_clamp(vv->flt_env * 100.0f, 0.0f, 100.0f);
+            dsp.vis.flt_st = fst;
+        } else {
+            dsp.vis.amp_env_pct = 0u;
+            dsp.vis.amp_st = ENV_OFF;
+            dsp.vis.flt_env_pct = 0u;
+            dsp.vis.flt_st = ENV_OFF;
+        }
+
+        float c_norm = (float)dsp.vis.mod_cut1 * (1.0f / 127.0f);
+        float r_norm = (float)dsp.vis.mod_res1_pct * 0.01f;
         for (i = 0; i < 32u; i++) {
             float bn = (float)i * (1.0f / 31.0f);
             float pass = (f1_type == SF_FLT_HP) ? (bn > c_norm ? 1.0f : 0.22f)

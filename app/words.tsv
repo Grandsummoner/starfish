@@ -21,7 +21,7 @@ SYNTH LVL	synth level
 KICK DUCK	kick sidechain ducking
 SYNTH CH	MIDI synth channel
 DRUM CH	MIDI drum channel
-BT MODE	Bluetooth MIDI mode
-AUDIO OUT	audio output level
+BT MIDI	Bluetooth MIDI mode
+OUT LEVEL	speaker and headphone level
 COUNT-IN	one bar count in
 

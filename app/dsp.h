@@ -53,7 +53,7 @@ typedef struct {
     uint8_t drum_vol;          /* 0..100 */
     uint8_t duck_amt;          /* 0..100 */
     uint8_t duck_src;          /* 0..7 drum voice index */
-    uint8_t audio_out_mode;    /* 0=AUTO/HP, 1=LINE -6dB, 2=HI +3dB */
+    uint8_t audio_out_mode;    /* 0=AUTO 0dB, 1=LINE -6dB, 2=BOOST +3dB */
     uint8_t hp_plugged;        /* 0=unplugged, 1=headphones, 255=unknown */
     uint8_t drum_bus;          /* 0..5 */
     uint8_t scale;             /* 0..11 */
@@ -84,6 +84,15 @@ typedef struct {
     uint32_t note_trig_seq;
     uint32_t drum_trig_seq;
     uint8_t last_drum_idx;
+    uint8_t mod_cut1;
+    uint8_t mod_cut2;
+    uint8_t mod_res1_pct;
+    uint8_t amp_env_pct;
+    uint8_t amp_st;
+    uint8_t flt_env_pct;
+    uint8_t flt_st;
+    uint8_t del_lvl_pct;
+    uint8_t rev_lvl_pct;
 } sf_dsp_vis_t;
 
 void sf_dsp_init(sf_engine_cfg_t *cfg);

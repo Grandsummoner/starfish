@@ -10,6 +10,10 @@ ble = true
 ble_central = true
 headphones = true
 backup = true
+usb_audio_in = true
+usb_audio_out = true
+usb_audio_first = true
+usb_iad = true
 
 # Website and firmware hub metadata (docs/FIRMWARE-JSON.md)
 tagline = "8-voice VA synth, 10-kit drum machine, arp and dual LFOs for FM-1"
