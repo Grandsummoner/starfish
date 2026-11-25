@@ -2,7 +2,7 @@
 
 **8-Voice Virtual Analog & Hypersaw Synthesizer · Dual Multimode Filters · 4-Icon FX Rack · 10-Kit Drum Sequencer · 288 Curated Presets + 128 Bank X Flash Slots**
 
-STARFISH turns the **M-VAVE FM-1** into a complete portable groovebox built on [`fm1-base`](https://github.com/charlesvestal/fm1-base) and [`felucca-bsp`](https://github.com/hugelton/felucca-bsp).
+STARFISH turns the **M-VAVE FM-1** into a complete portable groovebox.
 
 ---
 
@@ -41,29 +41,6 @@ All three pages share top-bar navigation (`Web Installer` · `User Guide` · `Pr
 
 ---
 
-## Building the `.fwsc` Package
-
-### Option 1 — Automated GitHub Actions Build (Recommended)
-1. Push this directory to a GitHub repository (`main` or `master`, or tag `git tag v1.0 && git push origin v1.0`).
-2. **Build and Release** compiles `starfish.fwsc`, runs `tests/run_tests.sh`, publishes the release binary, and deploys `index.html` + `guide.html` to GitHub Pages.
-
-### Option 2 — Local Linux / macOS Build
-Clone `fm1-base` into `base/` with the JieLi `pi32v2` toolchain and AC79 SDK configured:
-
-```bash
-bash ./build.sh --release 1.0
-# Output: app/build/starfish-1.0.fwsc
-```
-
-Host simulator check (uses local GCC/Clang without embedded SDK):
-
-```bash
-bash ./build.sh --host
-./app/build/host/starfish_host tests/basic.txt app/build/host
-```
-
----
-
 ## License
 
-Licensed under **MPL-2.0** (see `LICENSE`). Built on `fm1-base` and `felucca-bsp`.
+Licensed under **MPL-2.0** (see `LICENSE`). Built on [`fm1-base`](https://github.com/charlesvestal/fm1-base) and [`felucca-bsp`](https://github.com/hugelton/felucca-bsp).
