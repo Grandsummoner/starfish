@@ -1,0 +1,1669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STARFISH Interactive User Guide — M-VAVE FM-1 Synthesizer & Drum Groovebox</title>
+<meta name="description" content="Interactive hardware & simulator user guide for STARFISH on M-VAVE FM-1: live OLED simulator, FX icon guide, 27-key sequencer map, and 288-preset directory.">
+<style>
+  :root {
+    --bg: #0b0e14;
+    --surface: #121722;
+    --surface-2: #182030;
+    --border: #1e293b;
+    --fg: #eef2f7;
+    --muted: #94a3b8;
+    --cyan: #22d3ee;
+    --amber: #fbbf24;
+    --emerald: #34d399;
+    --orange: #f97316;
+    --accent: #22d3ee;
+    --on-accent: #071018;
+    --focus: #38bdf8;
+    --font-sans: "Plus Jakarta Sans", "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #eef2f6;
+    --border: #d8dee9;
+    --fg: #0f172a;
+    --muted: #475569;
+    --cyan: #0284c7;
+    --amber: #b45309;
+    --emerald: #047857;
+    --orange: #c2410c;
+    --accent: #0284c7;
+    --on-accent: #ffffff;
+    --focus: #0369a1;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* 3-Zone Top Navigation Bar */
+  header.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+  }
+  .brand {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  nav.topnav {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  nav.topnav a {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 150ms ease;
+  }
+  nav.topnav a:hover { color: var(--fg); text-decoration: none; }
+  .top-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: opacity 150ms ease;
+  }
+  .top-cta:hover { opacity: 0.9; text-decoration: none; }
+
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+  section { margin-top: 64px; scroll-margin-top: 76px; }
+  section:first-child { margin-top: 0; }
+
+  .hero-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .hero-copy { max-width: 720px; }
+  h1 {
+    margin: 0 0 12px;
+    font-size: clamp(2rem, 3.6vw, 2.9rem);
+    line-height: 1.12;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+  .lead {
+    margin: 0;
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 65ch;
+  }
+  .hero-meta {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .theme-btn {
+    background: var(--surface);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .theme-btn:hover { border-color: var(--cyan); }
+
+  h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  .sec-sub {
+    margin: 0 0 24px;
+    color: var(--muted);
+    max-width: 70ch;
+  }
+
+  /* Two-Zone Interactive Sandbox */
+  .sandbox {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr);
+    gap: 24px;
+    align-items: stretch;
+  }
+  .panel-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+  }
+  .hw-deck {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .oled-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  canvas#oled {
+    width: 240px;
+    height: 240px;
+    border-radius: 10px;
+    border: 2px solid #1e293b;
+    background: #07090e;
+    display: block;
+  }
+  .subpage-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .sub-btn, .ctrl-btn, .tab-btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--fg);
+    padding: 7px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+  }
+  .sub-btn:hover, .ctrl-btn:hover, .tab-btn:hover { border-color: var(--cyan); }
+  .sub-btn.active, .ctrl-btn.active, .tab-btn.active {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
+  .btn-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .btn-group-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  .knobs-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .knob-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .knob-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .knob-name { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .knob-val { font-size: 12.5px; font-weight: 700; color: var(--cyan); }
+  .knob-card input[type="range"] {
+    width: 100%;
+    accent-color: var(--cyan);
+    cursor: pointer;
+  }
+
+  .inspector-title {
+    margin: 0 0 4px;
+    font-size: 19px;
+    font-weight: 700;
+  }
+  .inspector-sub {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .knob-doc-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .knob-doc-list li {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .knob-doc-list li:first-child { border-top: 0; padding-top: 0; }
+  .kd-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .kd-desc { margin: 0; font-size: 13.5px; color: var(--muted); }
+  .note-box {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .note-box strong { color: var(--fg); }
+
+  /* Tabs & Tables */
+  .tabs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .ref-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .ref-table th {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ref-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .ref-table tr:last-child td { border-bottom: 0; }
+
+  /* Interactive 27-Key Sequencer Map */
+  .seq-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .kb-stage {
+    background: #0d111a;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 16px;
+    overflow-x: auto;
+  }
+  .kb-black-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    min-width: 720px;
+  }
+  .kb-white-row {
+    display: grid;
+    grid-template-columns: repeat(16, minmax(38px, 1fr));
+    gap: 6px;
+    min-width: 720px;
+  }
+  .cap-key {
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 140ms ease, background-color 140ms ease;
+    color: #e2e8f0;
+    background: #172030;
+  }
+  .cap-key.black { flex: 1; background: #101622; }
+  .cap-key.gap { flex: 0.45; visibility: hidden; pointer-events: none; }
+  .cap-key.lit { background: #164e63; border-color: #22d3ee; color: #ffffff; }
+  .cap-key.drum-sel { background: #0e7490; border-color: #22d3ee; color: #ffffff; }
+  .cap-key.muted { background: #450a0a; border-color: #ef4444; color: #fca5a5; }
+  .cap-key:hover { border-color: #22d3ee; transform: translateY(-1px); }
+  .cap-sub { display: block; font-size: 10px; font-weight: 500; color: #94a3b8; margin-top: 2px; }
+  .cap-key.lit .cap-sub, .cap-key.drum-sel .cap-sub { color: #cffafe; }
+
+  /* Searchable 288 Preset Explorer */
+  .preset-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .search-input {
+    width: 280px;
+    max-width: 100%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+    font-size: 13.5px;
+  }
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    max-height: 370px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .preset-item {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .preset-code { font-size: 11px; font-weight: 700; color: var(--cyan); }
+  .preset-name { font-size: 13px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .preset-cat { font-size: 11.5px; color: var(--muted); }
+
+  /* Two Column Audio/MIDI & Flashing Guides */
+  .split-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+  .clean-list {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .clean-list strong { color: var(--fg); }
+
+  footer {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 24px 48px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 980px) {
+    .sandbox, .split-2 { grid-template-columns: 1fr; }
+    .hw-deck { grid-template-columns: 1fr; }
+    .preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    nav.topnav { display: none; }
+  }
+  @media (max-width: 560px) {
+    .btn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .preset-grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="#top" class="brand">STARFISH</a>
+    <nav class="topnav" aria-label="Primary navigation">
+      <a href="#panel-map">Panel &amp; OLED</a>
+      <a href="#pages-ref">Pages &amp; Knobs</a>
+      <a href="#seq-map">Sequencer</a>
+      <a href="#preset-dir">288 Presets</a>
+      <a href="#io-flash">MIDI &amp; Flash</a>
+    </nav>
+    <a href="./index.html" class="top-cta">Web Installer</a>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero-row">
+    <div class="hero-copy">
+      <h1>STARFISH User Guide for M-VAVE FM-1</h1>
+      <p class="lead">
+        Interactive manual for the 8-voice virtual-analog synthesizer, 10-kit drum sequencer, dual multimode filters, and 288 curated presets running on M-VAVE FM-1 hardware and the web simulator.
+      </p>
+      <div class="hero-meta">
+        <span>8-Voice VA + Hypersaw</span>
+        <span aria-hidden="true">·</span>
+        <span>288 ROM Presets (Banks A–I) + 128 Bank X Slots</span>
+        <span aria-hidden="true">·</span>
+        <span>USB Audio + BLE MIDI</span>
+      </div>
+    </div>
+    <button type="button" class="theme-btn" id="themeBtn">Switch to Light Theme</button>
+  </div>
+
+  <!-- 1. Interactive Panel & Live OLED Explorer -->
+  <section id="panel-map">
+    <h2>1. Hardware Panel &amp; Live OLED Explorer</h2>
+    <p class="sec-sub">
+      Select any button or turn the four knobs below to inspect how STARFISH renders each menu page on the 240×240 hardware screen.
+    </p>
+    <div class="sandbox">
+      <div class="panel-card">
+        <div class="hw-deck">
+          <div class="oled-wrap">
+            <canvas id="oled" width="240" height="240" aria-label="Interactive STARFISH OLED preview"></canvas>
+            <div class="subpage-bar">
+              <button type="button" class="sub-btn" id="prevSub">Prev Page</button>
+              <span class="mono" id="subIndicator" style="font-size:12px;color:var(--muted);">1 / 3</span>
+              <button type="button" class="sub-btn" id="nextSub">Next Page</button>
+            </div>
+            <div class="subpage-bar">
+              <button type="button" class="sub-btn" id="previewBootBtn" style="flex:1;">Boot (STARFISH)</button>
+              <button type="button" class="sub-btn" id="previewAboutBtn" style="flex:1;">About (OCT- + OCT+)</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="btn-group-label">Hardware Mode Buttons (click again to cycle subpages)</p>
+            <div class="btn-grid" id="pageButtons"></div>
+
+            <div class="knobs-grid" id="knobControls"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-card" aria-live="polite">
+        <h3 class="inspector-title" id="inspTitle">PATCH PERF (1/3)</h3>
+        <p class="inspector-sub" id="inspSub">Live filter cutoff, resonance, dual-filter balance, and Starfish mascot telemetry</p>
+        <ul class="knob-doc-list" id="inspKnobs"></ul>
+        <div class="note-box" id="inspNote"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Complete Page & Encoder Reference -->
+  <section id="pages-ref">
+    <h2>2. Menus, Encoders &amp; Save Rules</h2>
+    <p class="sec-sub">
+      Browse every hardware page and encoder function. ROM Banks A–I stay read-only so factory gain levels remain reliable while saving routes cleanly into Bank X.
+    </p>
+    <div class="panel-card">
+      <div class="tabs-bar" id="refTabs"></div>
+      <div style="overflow-x:auto;">
+        <table class="ref-table">
+          <thead>
+            <tr>
+              <th>Control</th>
+              <th>Parameter</th>
+              <th>Range / Options</th>
+              <th>Behavior &amp; Tips</th>
+            </tr>
+          </thead>
+          <tbody id="refTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Interactive 27-Key Capsule Map (Synth & SEQ) -->
+  <section id="seq-map">
+    <h2>3. 27-Key Touch Keyboard &amp; Drum Sequencer</h2>
+    <p class="sec-sub">
+      Toggle between Synth performance mode and SEQ drum programming mode, then click keys to preview LED assignments and pattern steps.
+    </p>
+    <div class="panel-card">
+      <div class="seq-controls">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="tab-btn active" id="modeSynthBtn">Synth Mode</button>
+          <button type="button" class="tab-btn" id="modeSeqBtn">SEQ Drum Mode</button>
+          <button type="button" class="sub-btn" id="kitNextBtn">Kit: TR-808</button>
+        </div>
+        <span class="mono" id="seqStatus" style="font-size:12.5px;color:var(--muted);"></span>
+      </div>
+
+      <div class="kb-stage">
+        <div class="kb-black-row" id="blackKeysRow"></div>
+        <div class="kb-white-row" id="whiteKeysRow"></div>
+      </div>
+      <p id="seqHelp" style="margin:14px 0 0;font-size:13.5px;color:var(--muted);"></p>
+    </div>
+  </section>
+
+  <!-- 4. Searchable 288 ROM Preset Directory -->
+  <section id="preset-dir">
+    <h2>4. Curated 288-Preset ROM Directory (Banks A–I)</h2>
+    <p class="sec-sub">
+      Every factory slot is organized by role for instant recall, paired with read-only ROM protection and per-patch auto-saved gain.
+    </p>
+    <div class="panel-card">
+      <div class="preset-toolbar">
+        <div class="tabs-bar" id="bankFilterTabs" style="margin-bottom:0;"></div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <input type="search" id="presetSearch" class="search-input" placeholder="Search preset name or role...">
+          <span class="mono" id="presetCount" style="font-size:12px;color:var(--muted);">288 presets</span>
+        </div>
+      </div>
+      <div class="preset-grid" id="presetGrid"></div>
+    </div>
+  </section>
+
+  <!-- 5. USB Audio, Bluetooth MIDI & Firmware Flashing -->
+  <section id="io-flash">
+    <h2>5. USB Audio, Bluetooth MIDI &amp; Firmware Flashing</h2>
+    <p class="sec-sub">
+      Routing rules for DAW recording, external Bluetooth MIDI keyboards, and updating or restoring M-VAVE FM-1 hardware.
+    </p>
+    <div class="split-2">
+      <div class="panel-card">
+        <h3 style="margin:0 0 12px;font-size:18px;">Audio &amp; MIDI Routing (GLO 5/5 &amp; REC)</h3>
+        <ul class="clean-list">
+          <li><strong>USB Audio Independence:</strong> The physical speaker/headphone amplifier level is controlled on <code>GLO 5/5 → K4 (SPK/HP)</code>, including an <code>OFF</code> setting for silent USB-audio monitoring into Ableton or another DAW at full 44.1 kHz line level.</li>
+          <li><strong>USB Synth + Drum Mix:</strong> <code>HOME 3/3</code> balances global <code>SYNTH LVL</code>, <code>KICK DUCK</code> (sidechain compression depth), <code>DUCK SRC</code> (Kick / Kick+Snare / All), and <code>DRM LVL</code>.</li>
+          <li><strong>Bluetooth MIDI (REC button):</strong> Short-press <code>REC</code> to open the BLE scan/connect list for wireless keyboards or computers; hold <code>REC</code> for 1 second to toggle Bluetooth radio power.</li>
+          <li><strong>Hardware Combos &amp; Easter Eggs:</strong> Press <code>OCT- + OCT+</code> together for the <strong>STARFISH About App</strong> page &amp; Chorusy Cmaj9 shimmer; hold <code>HOME + SEL</code> for A/B Patch Compare; hold <code>GLO + ARP</code> for Disco Starfish; hold <code>ARP + OCT+/-</code> for Arp Latch.</li>
+          <li><strong>Channel Assignment:</strong> <code>GLO 5/5</code> sets Synth RX/TX MIDI channel (K1), Drum channel (K2), and BLE mode (K3: Off / Computer / External Keyboard).</li>
+        </ul>
+      </div>
+
+      <div class="panel-card">
+        <h3 style="margin:0 0 12px;font-size:18px;">Installing Firmware to FM-1 Hardware</h3>
+        <ul class="clean-list">
+          <li><strong>Step 1 — Export &amp; Build:</strong> Push the firmware source (from <strong>Export GitHub .zip</strong> or this repository) to GitHub. GitHub Actions automatically compiles <code>starfish.fwsc</code> and publishes Releases + GitHub Pages (<code>index.html</code> + <code>guide.html</code>).</li>
+          <li><strong>Step 2 — Open Web Installer:</strong> Open the <a href="./index.html">STARFISH Web MIDI Installer</a> in Chrome or Edge with your FM-1 connected directly via a USB-C data cable.</li>
+          <li><strong>Step 3 — Flash Safely:</strong> The page auto-loads <code>starfish.fwsc</code> (or lets you drop a downloaded <code>.fwsc</code> file). Confirm the backup prompt, press <strong>Install</strong>, and wait until the status reaches <strong>Done</strong>.</li>
+          <li><strong>Recovery &amp; Stock Return:</strong> The same Web Installer includes a verified stock M-VAVE firmware restore workflow and hardware crash-log reader.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>STARFISH for M-VAVE FM-1 · MPL-2.0</span>
+  <span>Built on fm1-base &amp; felucca-bsp · <a href="./index.html">Open Web MIDI Installer</a></span>
+</footer>
+
+<script>
+(() => {
+  const ROM_DATA = [{"code":"A000","bank":"A","role":"Pads & Strings","name":"Starlight Pad","cat":"Pad"},{"code":"A001","bank":"A","role":"Pads & Strings","name":"Polar Ice Pad","cat":"Pad"},{"code":"A002","bank":"A","role":"Pads & Strings","name":"Outpost Sweep","cat":"Pad"},{"code":"A003","bank":"A","role":"Pads & Strings","name":"Shimmer Chd Pad","cat":"Pad"},{"code":"A004","bank":"A","role":"Pads & Strings","name":"Himalayan Pad","cat":"Pad"},{"code":"A005","bank":"A","role":"Pads & Strings","name":"Resonant Atmos","cat":"Ambient"},{"code":"A006","bank":"A","role":"Pads & Strings","name":"Liquid Sky Pad","cat":"Pad"},{"code":"A007","bank":"A","role":"Pads & Strings","name":"Sunbeam Warmth","cat":"Pad"},{"code":"A008","bank":"A","role":"Pads & Strings","name":"Vocal Air Pad","cat":"Pad"},{"code":"A009","bank":"A","role":"Pads & Strings","name":"Ambient Drift","cat":"Ambient"},{"code":"A010","bank":"A","role":"Pads & Strings","name":"Harmonic Mist","cat":"Pad"},{"code":"A011","bank":"A","role":"Pads & Strings","name":"Orbital String","cat":"Pad"},{"code":"A012","bank":"A","role":"Pads & Strings","name":"Dawn Horizon","cat":"Pad"},{"code":"A013","bank":"A","role":"Pads & Strings","name":"Velvet Cloud","cat":"Pad"},{"code":"A014","bank":"A","role":"Pads & Strings","name":"Deep Choir Pad","cat":"Pad"},{"code":"A015","bank":"A","role":"Pads & Strings","name":"Coastal Breeze","cat":"Pad"},{"code":"A016","bank":"A","role":"Pads & Strings","name":"Abyssal Warmth","cat":"Pad"},{"code":"A017","bank":"A","role":"Pads & Strings","name":"Andromeda Swell","cat":"Ambient"},{"code":"A018","bank":"A","role":"Pads & Strings","name":"Silky Hiss Pad","cat":"Pad"},{"code":"A019","bank":"A","role":"Pads & Strings","name":"Soaring Strings","cat":"Pad"},{"code":"A020","bank":"A","role":"Pads & Strings","name":"Slow Reveal Pad","cat":"Pad"},{"code":"A021","bank":"A","role":"Pads & Strings","name":"Evolving Choir","cat":"Pad"},{"code":"A022","bank":"A","role":"Pads & Strings","name":"Ethereal Mist","cat":"Ambient"},{"code":"A023","bank":"A","role":"Pads & Strings","name":"Space Drift Pad","cat":"Ambient"},{"code":"A024","bank":"A","role":"Pads & Strings","name":"Cloud City Pad","cat":"Pad"},{"code":"A025","bank":"A","role":"Pads & Strings","name":"Black Velvet","cat":"Pad"},{"code":"A026","bank":"A","role":"Pads & Strings","name":"Silky Warm Pad","cat":"Pad"},{"code":"A027","bank":"A","role":"Pads & Strings","name":"Jetstream Pad","cat":"Pad"},{"code":"A028","bank":"A","role":"Pads & Strings","name":"Formant Swell","cat":"Pad"},{"code":"A029","bank":"A","role":"Pads & Strings","name":"Mystic Velvet","cat":"Pad"},{"code":"A030","bank":"A","role":"Pads & Strings","name":"Wide Carpet Pad","cat":"Pad"},{"code":"A031","bank":"A","role":"Pads & Strings","name":"Shiver Air Pad","cat":"Pad"},{"code":"B000","bank":"B","role":"Leads & Solo","name":"Future Saw Lead","cat":"Lead"},{"code":"B001","bank":"B","role":"Leads & Solo","name":"Classic Monosaw","cat":"Lead"},{"code":"B002","bank":"B","role":"Leads & Solo","name":"Sync Sweep Lead","cat":"Lead"},{"code":"B003","bank":"B","role":"Leads & Solo","name":"Redline Lead","cat":"Acid"},{"code":"B004","bank":"B","role":"Leads & Solo","name":"Cutting Soloist","cat":"Acid"},{"code":"B005","bank":"B","role":"Leads & Solo","name":"Gritty Edge Ld","cat":"Acid"},{"code":"B006","bank":"B","role":"Leads & Solo","name":"Cathedral Lead","cat":"Lead"},{"code":"B007","bank":"B","role":"Leads & Solo","name":"Cloaked Sync Ld","cat":"Lead"},{"code":"B008","bank":"B","role":"Leads & Solo","name":"Soft Bell Lead","cat":"Lead"},{"code":"B009","bank":"B","role":"Leads & Solo","name":"Soaker Reso Ld","cat":"Lead"},{"code":"B010","bank":"B","role":"Leads & Solo","name":"Acid Bite Lead","cat":"Lead"},{"code":"B011","bank":"B","role":"Leads & Solo","name":"Mars Attack Ld","cat":"Lead"},{"code":"B012","bank":"B","role":"Leads & Solo","name":"Circus Stab Ld","cat":"Lead"},{"code":"B013","bank":"B","role":"Leads & Solo","name":"Velvet Sync Ld","cat":"Lead"},{"code":"B014","bank":"B","role":"Leads & Solo","name":"Chainsaw Lead","cat":"Lead"},{"code":"B015","bank":"B","role":"Leads & Solo","name":"Brass Reed Lead","cat":"Acid"},{"code":"B016","bank":"B","role":"Leads & Solo","name":"Triple Osc Lead","cat":"Acid"},{"code":"B017","bank":"B","role":"Leads & Solo","name":"Hollow Formant","cat":"Lead"},{"code":"B018","bank":"B","role":"Leads & Solo","name":"Night City Lead","cat":"Lead"},{"code":"B019","bank":"B","role":"Leads & Solo","name":"Bright Saw Lead","cat":"Acid"},{"code":"B020","bank":"B","role":"Leads & Solo","name":"Popcorn Sync Ld","cat":"Lead"},{"code":"B021","bank":"B","role":"Leads & Solo","name":"Fifths Poly Ld","cat":"Lead"},{"code":"B022","bank":"B","role":"Leads & Solo","name":"Rebird Choir Ld","cat":"Lead"},{"code":"B023","bank":"B","role":"Leads & Solo","name":"Airy EQ Lead","cat":"Lead"},{"code":"B024","bank":"B","role":"Leads & Solo","name":"Glass Poly Lead","cat":"Lead"},{"code":"B025","bank":"B","role":"Leads & Solo","name":"Singing Mono Ld","cat":"Acid"},{"code":"B026","bank":"B","role":"Leads & Solo","name":"Capped Sync Ld","cat":"Lead"},{"code":"B027","bank":"B","role":"Leads & Solo","name":"Melancholy Lead","cat":"Lead"},{"code":"B028","bank":"B","role":"Leads & Solo","name":"Bowed String Ld","cat":"Lead"},{"code":"B029","bank":"B","role":"Leads & Solo","name":"Reso Bite Lead","cat":"Lead"},{"code":"B030","bank":"B","role":"Leads & Solo","name":"Macho Brass Ld","cat":"Lead"},{"code":"B031","bank":"B","role":"Leads & Solo","name":"Lunar Weed Lead","cat":"Acid"},{"code":"C000","bank":"C","role":"Bass & Sub","name":"Club Tool Bass","cat":"Bass"},{"code":"C001","bank":"C","role":"Bass & Sub","name":"Auto Filter Bs","cat":"Acid"},{"code":"C002","bank":"C","role":"Bass & Sub","name":"Gritty Sub Bass","cat":"Bass"},{"code":"C003","bank":"C","role":"Bass & Sub","name":"Monza Drive Bs","cat":"Bass"},{"code":"C004","bank":"C","role":"Bass & Sub","name":"Upright Sub Bs","cat":"Bass"},{"code":"C005","bank":"C","role":"Bass & Sub","name":"Classic PunchBs","cat":"Bass"},{"code":"C006","bank":"C","role":"Bass & Sub","name":"Auto Bend Bass","cat":"Bass"},{"code":"C007","bank":"C","role":"Bass & Sub","name":"5-Stack Sub Bs","cat":"Bass"},{"code":"C008","bank":"C","role":"Bass & Sub","name":"Basic Saw Bass","cat":"Bass"},{"code":"C009","bank":"C","role":"Bass & Sub","name":"Jungle Woofer","cat":"Bass"},{"code":"C010","bank":"C","role":"Bass & Sub","name":"Deep Sub Growl","cat":"Bass"},{"code":"C011","bank":"C","role":"Bass & Sub","name":"UK Garage Bass","cat":"Bass"},{"code":"C012","bank":"C","role":"Bass & Sub","name":"Sync Pedal Bass","cat":"Acid"},{"code":"C013","bank":"C","role":"Bass & Sub","name":"Dino Stomp Bass","cat":"Bass"},{"code":"C014","bank":"C","role":"Bass & Sub","name":"Sub World Bass","cat":"Acid"},{"code":"C015","bank":"C","role":"Bass & Sub","name":"Commercial Bass","cat":"Bass"},{"code":"C016","bank":"C","role":"Bass & Sub","name":"Pseudo 303 Bass","cat":"Bass"},{"code":"C017","bank":"C","role":"Bass & Sub","name":"Fripper Sub Bs","cat":"Bass"},{"code":"C018","bank":"C","role":"Bass & Sub","name":"Tight Square Bs","cat":"Bass"},{"code":"C019","bank":"C","role":"Bass & Sub","name":"Smooth Sub Bass","cat":"Bass"},{"code":"C020","bank":"C","role":"Bass & Sub","name":"Cosmic Sub Bass","cat":"Bass"},{"code":"C021","bank":"C","role":"Bass & Sub","name":"Fretless Bass","cat":"Bass"},{"code":"C022","bank":"C","role":"Bass & Sub","name":"Retro 80s Bass","cat":"Bass"},{"code":"C023","bank":"C","role":"Bass & Sub","name":"Rubber Acid Bs","cat":"Acid"},{"code":"C024","bank":"C","role":"Bass & Sub","name":"Deep Square Bs","cat":"Bass"},{"code":"C025","bank":"C","role":"Bass & Sub","name":"Pure Sine Bass","cat":"Bass"},{"code":"C026","bank":"C","role":"Bass & Sub","name":"Solid Punch Bs","cat":"Bass"},{"code":"C027","bank":"C","role":"Bass & Sub","name":"Garage Organ Bs","cat":"Bass"},{"code":"C028","bank":"C","role":"Bass & Sub","name":"Cavern Sub Bass","cat":"Bass"},{"code":"C029","bank":"C","role":"Bass & Sub","name":"Didgeridoo Bass","cat":"Bass"},{"code":"C030","bank":"C","role":"Bass & Sub","name":"Kingsize Sub Bs","cat":"Bass"},{"code":"C031","bank":"C","role":"Bass & Sub","name":"Drop Sub Bass","cat":"Bass"},{"code":"D000","bank":"D","role":"Plucks & Bells","name":"Sweeper Pluck","cat":"Pluck"},{"code":"D001","bank":"D","role":"Plucks & Bells","name":"Chime Bell Plk","cat":"Pluck"},{"code":"D002","bank":"D","role":"Plucks & Bells","name":"Edgy Saw Pluck","cat":"Pluck"},{"code":"D003","bank":"D","role":"Plucks & Bells","name":"Induced SyncPlk","cat":"Pluck"},{"code":"D004","bank":"D","role":"Plucks & Bells","name":"Rezzer Bell Plk","cat":"Pluck"},{"code":"D005","bank":"D","role":"Plucks & Bells","name":"Busy Saw Pluck","cat":"Pluck"},{"code":"D006","bank":"D","role":"Plucks & Bells","name":"Crunchy Pluck","cat":"Pluck"},{"code":"D007","bank":"D","role":"Plucks & Bells","name":"Morse Code Bell","cat":"Pluck"},{"code":"D008","bank":"D","role":"Plucks & Bells","name":"Echo Tine Pluck","cat":"Pluck"},{"code":"D009","bank":"D","role":"Plucks & Bells","name":"Overtone Bell","cat":"Pluck"},{"code":"D010","bank":"D","role":"Plucks & Bells","name":"Whirly Pluck","cat":"Pluck"},{"code":"D011","bank":"D","role":"Plucks & Bells","name":"Jazz Tine Pluck","cat":"Pluck"},{"code":"D012","bank":"D","role":"Plucks & Bells","name":"Koto String Plk","cat":"Pluck"},{"code":"D013","bank":"D","role":"Plucks & Bells","name":"Harmonic Harp","cat":"Pluck"},{"code":"D014","bank":"D","role":"Plucks & Bells","name":"Startup Chime","cat":"Pluck"},{"code":"D015","bank":"D","role":"Plucks & Bells","name":"Fuzz Bell Pluck","cat":"Pluck"},{"code":"D016","bank":"D","role":"Plucks & Bells","name":"Dark Metal Plk","cat":"Pluck"},{"code":"D017","bank":"D","role":"Plucks & Bells","name":"Bright Arp Bell","cat":"Pluck"},{"code":"D018","bank":"D","role":"Plucks & Bells","name":"Soft Seq Pluck","cat":"Pluck"},{"code":"D019","bank":"D","role":"Plucks & Bells","name":"Submerged Pluck","cat":"Pluck"},{"code":"D020","bank":"D","role":"Plucks & Bells","name":"Air Chime Pluck","cat":"Pluck"},{"code":"D021","bank":"D","role":"Plucks & Bells","name":"Perky Saw Pluck","cat":"Pluck"},{"code":"D022","bank":"D","role":"Plucks & Bells","name":"Tremor Pluck","cat":"Pluck"},{"code":"D023","bank":"D","role":"Plucks & Bells","name":"Lite Glass Bell","cat":"Pluck"},{"code":"D024","bank":"D","role":"Plucks & Bells","name":"Wave Bells Plk","cat":"Pluck"},{"code":"D025","bank":"D","role":"Plucks & Bells","name":"Kyoto Harp Plk","cat":"Pluck"},{"code":"D026","bank":"D","role":"Plucks & Bells","name":"Plucked Chime","cat":"Pluck"},{"code":"D027","bank":"D","role":"Plucks & Bells","name":"Monolith Bell","cat":"Pluck"},{"code":"D028","bank":"D","role":"Plucks & Bells","name":"Glitch Perc Plk","cat":"Pluck"},{"code":"D029","bank":"D","role":"Plucks & Bells","name":"Attack Clav Plk","cat":"Pluck"},{"code":"D030","bank":"D","role":"Plucks & Bells","name":"Digital Koto","cat":"Pluck"},{"code":"D031","bank":"D","role":"Plucks & Bells","name":"Cinder Bell Plk","cat":"Pluck"},{"code":"E000","bank":"E","role":"Keys & Organs","name":"Simple PolyKeys","cat":"Key"},{"code":"E001","bank":"E","role":"Keys & Organs","name":"Big Sweep Keys","cat":"Key"},{"code":"E002","bank":"E","role":"Keys & Organs","name":"Moving StringKy","cat":"Key"},{"code":"E003","bank":"E","role":"Keys & Organs","name":"Silky SynthKeys","cat":"Key"},{"code":"E004","bank":"E","role":"Keys & Organs","name":"Poly Detune Key","cat":"Key"},{"code":"E005","bank":"E","role":"Keys & Organs","name":"Warm Brass Keys","cat":"Organ"},{"code":"E006","bank":"E","role":"Keys & Organs","name":"Atlas Choir Key","cat":"Key"},{"code":"E007","bank":"E","role":"Keys & Organs","name":"Glass Choir Key","cat":"Key"},{"code":"E008","bank":"E","role":"Keys & Organs","name":"Drawbar Organ","cat":"Key"},{"code":"E009","bank":"E","role":"Keys & Organs","name":"Bright Saw Keys","cat":"Key"},{"code":"E010","bank":"E","role":"Keys & Organs","name":"Cathedral Organ","cat":"Key"},{"code":"E011","bank":"E","role":"Keys & Organs","name":"Gritty Organ","cat":"Key"},{"code":"E012","bank":"E","role":"Keys & Organs","name":"Peaceful Organ","cat":"Key"},{"code":"E013","bank":"E","role":"Keys & Organs","name":"Tender EP Keys","cat":"Key"},{"code":"E014","bank":"E","role":"Keys & Organs","name":"Melodic PolyKey","cat":"Key"},{"code":"E015","bank":"E","role":"Keys & Organs","name":"Warm Analog Pad","cat":"Key"},{"code":"E016","bank":"E","role":"Keys & Organs","name":"Chorus Poly Key","cat":"Key"},{"code":"E017","bank":"E","role":"Keys & Organs","name":"Punchy Clav Key","cat":"Key"},{"code":"E018","bank":"E","role":"Keys & Organs","name":"Twin Stack Keys","cat":"Key"},{"code":"E019","bank":"E","role":"Keys & Organs","name":"Justice Organ","cat":"Key"},{"code":"E020","bank":"E","role":"Keys & Organs","name":"Electric Grand","cat":"Key"},{"code":"E021","bank":"E","role":"Keys & Organs","name":"Tape Flute Keys","cat":"Key"},{"code":"E022","bank":"E","role":"Keys & Organs","name":"Perc Organ Keys","cat":"Key"},{"code":"E023","bank":"E","role":"Keys & Organs","name":"Funky Clav Keys","cat":"Key"},{"code":"E024","bank":"E","role":"Keys & Organs","name":"Pop Comp Keys","cat":"Organ"},{"code":"E025","bank":"E","role":"Keys & Organs","name":"Fat Analog Keys","cat":"Key"},{"code":"E026","bank":"E","role":"Keys & Organs","name":"Fifth Poly Keys","cat":"Key"},{"code":"E027","bank":"E","role":"Keys & Organs","name":"Club House Orgn","cat":"Key"},{"code":"E028","bank":"E","role":"Keys & Organs","name":"Xylophone Keys","cat":"Key"},{"code":"E029","bank":"E","role":"Keys & Organs","name":"Twin Brass Keys","cat":"Organ"},{"code":"E030","bank":"E","role":"Keys & Organs","name":"Warm Brass Ens","cat":"Organ"},{"code":"E031","bank":"E","role":"Keys & Organs","name":"Bright BrassKy","cat":"Organ"},{"code":"F000","bank":"F","role":"Arps & Sequences","name":"Donkey Bass Arp","cat":"Arp"},{"code":"F001","bank":"F","role":"Arps & Sequences","name":"Jawdan Sync Arp","cat":"Arp"},{"code":"F002","bank":"F","role":"Arps & Sequences","name":"Prion Pulse Arp","cat":"Arp"},{"code":"F003","bank":"F","role":"Arps & Sequences","name":"Rhythm Saw Arp","cat":"Arp"},{"code":"F004","bank":"F","role":"Arps & Sequences","name":"Crossworld Arp","cat":"Arp"},{"code":"F005","bank":"F","role":"Arps & Sequences","name":"Mallet Perc Arp","cat":"Arp"},{"code":"F006","bank":"F","role":"Arps & Sequences","name":"Trance Gate Arp","cat":"Arp"},{"code":"F007","bank":"F","role":"Arps & Sequences","name":"Rollin Saw Arp","cat":"Arp"},{"code":"F008","bank":"F","role":"Arps & Sequences","name":"Bouncy Sub Arp","cat":"Arp"},{"code":"F009","bank":"F","role":"Arps & Sequences","name":"Fifth Chord Arp","cat":"Organ"},{"code":"F010","bank":"F","role":"Arps & Sequences","name":"Waver Glass Arp","cat":"Arp"},{"code":"F011","bank":"F","role":"Arps & Sequences","name":"Sharp Acid Arp","cat":"Arp"},{"code":"F012","bank":"F","role":"Arps & Sequences","name":"Classic Seq Arp","cat":"Arp"},{"code":"F013","bank":"F","role":"Arps & Sequences","name":"Cyclone SyncArp","cat":"Arp"},{"code":"F014","bank":"F","role":"Arps & Sequences","name":"Raspy Saw Arp","cat":"Arp"},{"code":"F015","bank":"F","role":"Arps & Sequences","name":"Beatbox PercArp","cat":"Arp"},{"code":"F016","bank":"F","role":"Arps & Sequences","name":"Staccato Arp","cat":"Arp"},{"code":"F017","bank":"F","role":"Arps & Sequences","name":"Euro Chord Arp","cat":"Organ"},{"code":"F018","bank":"F","role":"Arps & Sequences","name":"Quartz Bell Arp","cat":"Arp"},{"code":"F019","bank":"F","role":"Arps & Sequences","name":"Boingy Reso Arp","cat":"Arp"},{"code":"F020","bank":"F","role":"Arps & Sequences","name":"Space Night Arp","cat":"Arp"},{"code":"F021","bank":"F","role":"Arps & Sequences","name":"Step Seq Arp","cat":"Arp"},{"code":"F022","bank":"F","role":"Arps & Sequences","name":"Infected AcidAp","cat":"Arp"},{"code":"F023","bank":"F","role":"Arps & Sequences","name":"Spring Coil Arp","cat":"Arp"},{"code":"F024","bank":"F","role":"Arps & Sequences","name":"Squeeze ResoArp","cat":"Arp"},{"code":"F025","bank":"F","role":"Arps & Sequences","name":"Anima Pulse Arp","cat":"Arp"},{"code":"F026","bank":"F","role":"Arps & Sequences","name":"7th Chord Arp","cat":"Organ"},{"code":"F027","bank":"F","role":"Arps & Sequences","name":"Goa Trance Arp","cat":"Arp"},{"code":"F028","bank":"F","role":"Arps & Sequences","name":"Chord Pulse Arp","cat":"Organ"},{"code":"F029","bank":"F","role":"Arps & Sequences","name":"Tabloid Seq Arp","cat":"Arp"},{"code":"F030","bank":"F","role":"Arps & Sequences","name":"Dual Chord Arp","cat":"Organ"},{"code":"F031","bank":"F","role":"Arps & Sequences","name":"Bleep MotionArp","cat":"Arp"},{"code":"G000","bank":"G","role":"Wobble & Dub","name":"Duck Sub Wobble","cat":"Bass"},{"code":"G001","bank":"G","role":"Wobble & Dub","name":"Deep Birth Wob","cat":"Arp"},{"code":"G002","bank":"G","role":"Wobble & Dub","name":"Star Bite Wob","cat":"Arp"},{"code":"G003","bank":"G","role":"Wobble & Dub","name":"Talk FormantWb","cat":"Bass"},{"code":"G004","bank":"G","role":"Wobble & Dub","name":"Vowel FormantWb","cat":"Arp"},{"code":"G005","bank":"G","role":"Wobble & Dub","name":"Oldschool Dub","cat":"Arp"},{"code":"G006","bank":"G","role":"Wobble & Dub","name":"Dig This Wobble","cat":"Bass"},{"code":"G007","bank":"G","role":"Wobble & Dub","name":"Rubber Dub Bass","cat":"Arp"},{"code":"G008","bank":"G","role":"Wobble & Dub","name":"Vocal Swell Wb","cat":"Arp"},{"code":"G009","bank":"G","role":"Wobble & Dub","name":"Major Dub Stab","cat":"Bass"},{"code":"G010","bank":"G","role":"Wobble & Dub","name":"Timestep Wobble","cat":"Arp"},{"code":"G011","bank":"G","role":"Wobble & Dub","name":"Extreme Acid Wb","cat":"Arp"},{"code":"G012","bank":"G","role":"Wobble & Dub","name":"Rubber Harp Wb","cat":"Bass"},{"code":"G013","bank":"G","role":"Wobble & Dub","name":"Deep Dub Keys","cat":"Arp"},{"code":"G014","bank":"G","role":"Wobble & Dub","name":"Dub Sax Swell","cat":"Arp"},{"code":"G015","bank":"G","role":"Wobble & Dub","name":"Vowel Sweep Stb","cat":"Bass"},{"code":"G016","bank":"G","role":"Wobble & Dub","name":"Formant Growl","cat":"Arp"},{"code":"G017","bank":"G","role":"Wobble & Dub","name":"Warm Vowel Dub","cat":"Arp"},{"code":"G018","bank":"G","role":"Wobble & Dub","name":"Fuzzbox Acid Wb","cat":"Bass"},{"code":"G019","bank":"G","role":"Wobble & Dub","name":"Bubble Reso Wb","cat":"Arp"},{"code":"G020","bank":"G","role":"Wobble & Dub","name":"Wet Dub Chords","cat":"Arp"},{"code":"G021","bank":"G","role":"Wobble & Dub","name":"Impact Sub Wb","cat":"Bass"},{"code":"G022","bank":"G","role":"Wobble & Dub","name":"Dusty Step Dub","cat":"Arp"},{"code":"G023","bank":"G","role":"Wobble & Dub","name":"Pitchy Wobble","cat":"Arp"},{"code":"G024","bank":"G","role":"Wobble & Dub","name":"Bass Stomp Wob","cat":"Bass"},{"code":"G025","bank":"G","role":"Wobble & Dub","name":"Quack Filter Wb","cat":"Arp"},{"code":"G026","bank":"G","role":"Wobble & Dub","name":"Velo Wah Bass","cat":"Arp"},{"code":"G027","bank":"G","role":"Wobble & Dub","name":"Filter Axe Wob","cat":"Bass"},{"code":"G028","bank":"G","role":"Wobble & Dub","name":"Raw Dub Growl","cat":"Arp"},{"code":"G029","bank":"G","role":"Wobble & Dub","name":"Vanilla Sub Wb","cat":"Arp"},{"code":"G030","bank":"G","role":"Wobble & Dub","name":"Metal Sync Wob","cat":"Bass"},{"code":"G031","bank":"G","role":"Wobble & Dub","name":"Nasty Dub Bass","cat":"Arp"},{"code":"H000","bank":"H","role":"FX & Drones","name":"Entropy Swell","cat":"FX"},{"code":"H001","bank":"H","role":"FX & Drones","name":"Outland Texture","cat":"FX"},{"code":"H002","bank":"H","role":"FX & Drones","name":"Voyager Drone","cat":"Ambient"},{"code":"H003","bank":"H","role":"FX & Drones","name":"Wailing Siren","cat":"FX"},{"code":"H004","bank":"H","role":"FX & Drones","name":"Big Flyby FX","cat":"FX"},{"code":"H005","bank":"H","role":"FX & Drones","name":"Haunted Atmos","cat":"Ambient"},{"code":"H006","bank":"H","role":"FX & Drones","name":"Scanner Sweep","cat":"FX"},{"code":"H007","bank":"H","role":"FX & Drones","name":"Jet Flyby FX","cat":"FX"},{"code":"H008","bank":"H","role":"FX & Drones","name":"Cinema Opener","cat":"FX"},{"code":"H009","bank":"H","role":"FX & Drones","name":"Tubular ChimeFX","cat":"FX"},{"code":"H010","bank":"H","role":"FX & Drones","name":"Acid Sweep FX","cat":"FX"},{"code":"H011","bank":"H","role":"FX & Drones","name":"Chant Drone FX","cat":"Ambient"},{"code":"H012","bank":"H","role":"FX & Drones","name":"Reso Goo Swell","cat":"FX"},{"code":"H013","bank":"H","role":"FX & Drones","name":"Apogee Space FX","cat":"FX"},{"code":"H014","bank":"H","role":"FX & Drones","name":"Deep Gulf Drone","cat":"Ambient"},{"code":"H015","bank":"H","role":"FX & Drones","name":"Space Wind FX","cat":"FX"},{"code":"H016","bank":"H","role":"FX & Drones","name":"Oil Crawl Drone","cat":"Ambient"},{"code":"H017","bank":"H","role":"FX & Drones","name":"Vapor Mist FX","cat":"FX"},{"code":"H018","bank":"H","role":"FX & Drones","name":"Ruminate Drone","cat":"Ambient"},{"code":"H019","bank":"H","role":"FX & Drones","name":"Laser Glide FX","cat":"FX"},{"code":"H020","bank":"H","role":"FX & Drones","name":"Phase Drift FX","cat":"FX"},{"code":"H021","bank":"H","role":"FX & Drones","name":"Time Delay FX","cat":"FX"},{"code":"H022","bank":"H","role":"FX & Drones","name":"Everest Wind FX","cat":"FX"},{"code":"H023","bank":"H","role":"FX & Drones","name":"Voodoo Perc FX","cat":"FX"},{"code":"H024","bank":"H","role":"FX & Drones","name":"Spaced Out FX","cat":"FX"},{"code":"H025","bank":"H","role":"FX & Drones","name":"Max Wave Swell","cat":"FX"},{"code":"H026","bank":"H","role":"FX & Drones","name":"Hold Chord FX","cat":"FX"},{"code":"H027","bank":"H","role":"FX & Drones","name":"Sunder Atmos FX","cat":"Ambient"},{"code":"H028","bank":"H","role":"FX & Drones","name":"Goodnight Drone","cat":"Ambient"},{"code":"H029","bank":"H","role":"FX & Drones","name":"Nasty Noise FX","cat":"FX"},{"code":"H030","bank":"H","role":"FX & Drones","name":"Ghostly Choir1","cat":"FX"},{"code":"H031","bank":"H","role":"FX & Drones","name":"Ghostly Choir2","cat":"FX"},{"code":"I000","bank":"I","role":"Starfish Originals","name":"Star Phaser Pad","cat":"Pad"},{"code":"I001","bank":"I","role":"Starfish Originals","name":"Dub Tape Swell","cat":"Ambient"},{"code":"I002","bank":"I","role":"Starfish Originals","name":"Acid Reso Siren","cat":"Acid"},{"code":"I003","bank":"I","role":"Starfish Originals","name":"Breath ChoirPad","cat":"Pad"},{"code":"I004","bank":"I","role":"Starfish Originals","name":"Trem Glass Keys","cat":"Key"},{"code":"I005","bank":"I","role":"Starfish Originals","name":"Split Ring Bell","cat":"Pluck"},{"code":"I006","bank":"I","role":"Starfish Originals","name":"Sync Laser Swrm","cat":"Lead"},{"code":"I007","bank":"I","role":"Starfish Originals","name":"Ocean ChorusPad","cat":"Ambient"},{"code":"I008","bank":"I","role":"Starfish Originals","name":"FM Metal Arp","cat":"Arp"},{"code":"I009","bank":"I","role":"Starfish Originals","name":"Dual Notch Pad","cat":"Pad"},{"code":"I010","bank":"I","role":"Starfish Originals","name":"Cyber Reese Bs","cat":"Bass"},{"code":"I011","bank":"I","role":"Starfish Originals","name":"Spiral Wobble","cat":"FX"},{"code":"I012","bank":"I","role":"Starfish Originals","name":"Glass Arp Pulse","cat":"Arp"},{"code":"I013","bank":"I","role":"Starfish Originals","name":"Sub Bass Tremor","cat":"Bass"},{"code":"I014","bank":"I","role":"Starfish Originals","name":"Solar Wind Drn","cat":"Ambient"},{"code":"I015","bank":"I","role":"Starfish Originals","name":"Neon SuperSaw","cat":"Lead"},{"code":"I016","bank":"I","role":"Starfish Originals","name":"Tape Ghost Keys","cat":"Key"},{"code":"I017","bank":"I","role":"Starfish Originals","name":"Rave Hoover Stb","cat":"Lead"},{"code":"I018","bank":"I","role":"Starfish Originals","name":"Crystal HarpArp","cat":"Arp"},{"code":"I019","bank":"I","role":"Starfish Originals","name":"Talking Formant","cat":"FX"},{"code":"I020","bank":"I","role":"Starfish Originals","name":"PWM Sunset Lead","cat":"Lead"},{"code":"I021","bank":"I","role":"Starfish Originals","name":"Hydra Sub Pluck","cat":"Pluck"},{"code":"I022","bank":"I","role":"Starfish Originals","name":"Strobe Gate Pad","cat":"Pad"},{"code":"I023","bank":"I","role":"Starfish Originals","name":"Metallic GongFX","cat":"FX"},{"code":"I024","bank":"I","role":"Starfish Originals","name":"Biolumine Arp","cat":"Arp"},{"code":"I025","bank":"I","role":"Starfish Originals","name":"FM Kalimba Keys","cat":"Key"},{"code":"I026","bank":"I","role":"Starfish Originals","name":"Deep Trench Sub","cat":"Bass"},{"code":"I027","bank":"I","role":"Starfish Originals","name":"Prism Shimmer","cat":"Ambient"},{"code":"I028","bank":"I","role":"Starfish Originals","name":"Electro Zap Ld","cat":"Acid"},{"code":"I029","bank":"I","role":"Starfish Originals","name":"Velvet Brass Sw","cat":"Pad"},{"code":"I030","bank":"I","role":"Starfish Originals","name":"Spiral Echo Plk","cat":"Arp"},{"code":"I031","bank":"I","role":"Starfish Originals","name":"Starfish Nova","cat":"FX"}];
+
+  // Theme toggle
+  const root = document.documentElement;
+  const themeBtn = document.getElementById("themeBtn");
+  const savedTheme = localStorage.getItem("starfish-guide-theme") || "dark";
+  if (savedTheme === "light") root.setAttribute("data-theme", "light");
+  const syncThemeLabel = () => {
+    themeBtn.textContent = root.getAttribute("data-theme") === "light" ? "Switch to Dark Theme" : "Switch to Light Theme";
+  };
+  syncThemeLabel();
+  themeBtn.addEventListener("click", () => {
+    const isLight = root.getAttribute("data-theme") === "light";
+    if (isLight) {
+      root.removeAttribute("data-theme");
+      localStorage.setItem("starfish-guide-theme", "dark");
+    } else {
+      root.setAttribute("data-theme", "light");
+      localStorage.setItem("starfish-guide-theme", "light");
+    }
+    syncThemeLabel();
+  });
+
+  // Page & Subpage definitions synchronized 1:1 with firmware + simulator
+  const PAGES = {
+    HOME: {
+      subs: [
+        {
+          title: "PATCH PERF (1/3)",
+          sub: "Filter 1 cutoff/resonance, Filter 2 cutoff, dual-filter balance & reactive mascot",
+          note: "SELECT switches Banks A–I and User Bank X. PRESET scrolls the 32 slots per bank. ALGO changes the OLED theme palette.",
+          knobs: [
+            { name: "CUTOFF 1", min: 0, max: 127, val: 72, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Primary Filter 1 cutoff frequency (40 Hz to 12.5 kHz)." },
+            { name: "RESO 1", min: 0, max: 127, val: 42, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 1 resonance emphasis (headroom-compensated when modulated by LFO)." },
+            { name: "CUTOFF 2", min: 0, max: 127, val: 96, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Secondary Filter 2 cutoff for Serial, Parallel, or Split dual-filter shaping." },
+            { name: "F-BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Crossfades signal emphasis between Filter 1 (0%) and Filter 2 (100%)." }
+          ]
+        },
+        {
+          title: "PATCH STAGE (2/3)",
+          sub: "Per-patch gain (auto-saved), Tilt EQ, Mid/Side stereo width & Attack Punch",
+          note: "PATCH GAIN automatically persists per preset without touching ROM Banks A–I. TILT EQ, M/S WIDTH, and PUNCH save into Bank X.",
+          knobs: [
+            { name: "PATCH GAIN", min: -12, max: 12, val: 0, unit: "dB", fmt: v => `${v >= 0 ? "+" : ""}${v}dB`, desc: "Auto-saved per-patch level trim (-12 dB to +12 dB) for matching live sets." },
+            { name: "TILT EQ", min: -7, max: 7, val: 2, unit: "", fmt: v => `${v >= 0 ? "+" : ""}${v}`, desc: "Pivoting spectral tilt: negative warms lows/softens highs; positive opens air." },
+            { name: "M/S WIDTH", min: 0, max: 200, val: 115, unit: "%", fmt: v => `${v}%`, desc: "Mid/Side stereo width matrix from mono focus (0%) to wide stereo spread (200%)." },
+            { name: "PUNCH", min: 0, max: 100, val: 40, unit: "%", fmt: v => `${v}%`, desc: "Fast attack transient snap for bass, plucks, and percussive synth lines." }
+          ]
+        },
+        {
+          title: "GLOBAL MIX (3/3)",
+          sub: "Global synth level, sidechain ducking & drum bus balance",
+          note: "Global settings apply across every patch and persist automatically.",
+          knobs: [
+            { name: "SYNTH LVL", min: 0, max: 100, val: 85, unit: "%", fmt: v => `${v}%`, desc: "Master synthesizer output bus level relative to drums." },
+            { name: "KICK DUCK", min: 0, max: 100, val: 38, unit: "%", fmt: v => `${v}%`, desc: "Sidechain compression ducking amount applied to synth voices on drum hits." },
+            { name: "DUCK SRC", min: 0, max: 2, val: 0, unit: "", fmt: v => ["KICK", "KICK+SD", "ALL DRM"][v], desc: "Trigger source driving synth sidechain pumping: Kick only, Kick+Snare, or All Drums." },
+            { name: "DRM LVL", min: 0, max: 100, val: 82, unit: "%", fmt: v => `${v}%`, desc: "Master drum sequencer output level." }
+          ]
+        }
+      ]
+    },
+    FX: {
+      subs: [
+        {
+          title: "FX RACK MIX (1/2)",
+          sub: "Horizontal 4-box FX rack with calm VFX-inspired icons: Chorus · Phaser · Delay · Reverb",
+          note: "Calm animated water ripples, force-field arcs, comet echoes, and aura ember sprites convey live depth without strobing. Press FX again for page 2/2.",
+          knobs: [
+            { name: "CHORUS", min: 0, max: 100, val: 48, unit: "%", fmt: v => `${v}%`, desc: "BBD-style stereo chorus ensemble depth (water-ripple wave arcs)." },
+            { name: "PHASER", min: 0, max: 100, val: 35, unit: "%", fmt: v => `${v}%`, desc: "All-pass phaser wet mix (gliding force-field filament arc)." },
+            { name: "DELAY", min: 0, max: 100, val: 65, unit: "", fmt: v => v > 78 ? ["1/16","1/8T","1/8","1/8D","1/4","1/4D"][Math.min(5, Math.floor((v-79)/4))] : `${(0.05 + (v/78)*0.75).toFixed(2)}s`, desc: "Delay time in seconds or BPM-synced subdivisions (comet echo trail diamonds)." },
+            { name: "REVERB", min: 0, max: 100, val: 42, unit: "%", fmt: v => `${v}%`, desc: "Stereo Schroeder diffuser reverb mix and bloom (magic aura orb & embers)." }
+          ]
+        },
+        {
+          title: "DLY MIX & SAT (2/2)",
+          sub: "Horizontal 4-box FX rack: Delay Mix · Delay Feedback · Phaser Rate · Saturation",
+          note: "Knob 4 selects Soft, Tube, Hard, or Bypass analog waveshaping shown on the flame/ember core sprite.",
+          knobs: [
+            { name: "DLY MIX", min: 0, max: 100, val: 45, unit: "%", fmt: v => `${v}%`, desc: "Stereo ping-pong delay wet/dry blend (twin energy beam splitter)." },
+            { name: "DLY FB", min: 0, max: 95, val: 38, unit: "%", fmt: v => `${v}%`, desc: "Delay regeneration feedback up to 95% (spiral portal vortex sparks)." },
+            { name: "PHS HZ", min: 1, max: 60, val: 12, unit: "", fmt: v => `${(v*0.1).toFixed(1)}Hz`, desc: "Phaser sweep oscillator speed from 0.1 Hz to 6.0 Hz (lightning crest sweep)." },
+            { name: "SAT TYPE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["SOFT","TUBE","HARD","OFF"][v], desc: "Selects Soft Clip, Warm Tube, Hard Drive, or Bypass saturation (flame/ember core)." }
+          ]
+        }
+      ]
+    },
+    SEL: {
+      subs: [
+        {
+          title: "FILTER MODE (1/3)",
+          sub: "Live dual-filter response curve (LP / BP / HP / NOTCH)",
+          note: "Routes two independent filters in Serial (F1→F2), Parallel (F1||F2), or Split (Osc1→F1 / Osc2→F2).",
+          knobs: [
+            { name: "FILTER 1", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","NOTCH"][v], desc: "Filter 1 slope response mode." },
+            { name: "ROUTING", min: 0, max: 2, val: 0, unit: "", fmt: v => ["SERIAL","PARALLEL","SPLIT"][v], desc: "Signal topology between Filter 1 and Filter 2." },
+            { name: "FILTER 2", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","NOTCH"][v], desc: "Filter 2 response mode." },
+            { name: "F-BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Blend between Filter 1 and Filter 2 outputs." }
+          ]
+        },
+        {
+          title: "FILTER TONE (2/3)",
+          sub: "Direct Filter 1 & Filter 2 cutoff and resonance sculpting",
+          note: "Filter frequency curves update live on the OLED as knobs move or LFOs sweep.",
+          knobs: [
+            { name: "CUTOFF 1", min: 0, max: 127, val: 68, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Filter 1 frequency." },
+            { name: "RESO 1", min: 0, max: 127, val: 48, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 1 resonance Q." },
+            { name: "CUTOFF 2", min: 0, max: 127, val: 92, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Filter 2 frequency." },
+            { name: "RESO 2", min: 0, max: 127, val: 28, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 2 resonance Q." }
+          ]
+        },
+        {
+          title: "FILTER ENV (3/3)",
+          sub: "Filter envelope depth, release & keyboard tracking",
+          note: "Positive Keyfollow opens the filter as you play higher notes on the keyboard.",
+          knobs: [
+            { name: "F-BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Filter 1/2 mix balance." },
+            { name: "F-ENV AMT", min: -100, max: 100, val: 54, unit: "%", fmt: v => `${v}%`, desc: "Bipolar filter envelope modulation depth." },
+            { name: "F-RELEASE", min: 0, max: 127, val: 44, unit: "", fmt: v => `${(0.02 + Math.pow(v/127, 2)*2.48).toFixed(2)}s`, desc: "Filter release time after note off." },
+            { name: "KEYFOLLOW", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Cutoff pitch tracking across the keyboard." }
+          ]
+        }
+      ]
+    },
+    ENV: {
+      subs: [
+        {
+          title: "AMP ADSR (1/2)",
+          sub: "Live ADSR envelope curve with trigger playhead",
+          note: "Press ENV or turn ALGO to switch between Amp Envelope (cyan) and Filter Envelope (amber).",
+          knobs: [
+            { name: "ATTACK", min: 0, max: 127, val: 12, unit: "", fmt: v => `${Math.round(5 + Math.pow(v/127, 2)*1995)}ms`, desc: "Time to reach peak volume on key press." },
+            { name: "DECAY", min: 0, max: 127, val: 58, unit: "", fmt: v => `${(0.01 + Math.pow(v/127, 2)*2.99).toFixed(2)}s`, desc: "Fall time from peak down to sustain level." },
+            { name: "SUSTAIN", min: 0, max: 127, val: 92, unit: "", fmt: v => `${Math.round((v/127)*100)}%`, desc: "Held volume level while key stays pressed." },
+            { name: "RELEASE", min: 0, max: 127, val: 48, unit: "", fmt: v => `${(0.01 + Math.pow(v/127, 2)*2.99).toFixed(2)}s`, desc: "Fade-out tail after releasing the key." }
+          ]
+        },
+        {
+          title: "FILTER ADSR (2/2)",
+          sub: "Filter modulation envelope curve & bipolar depth",
+          note: "Negative F-ENV values invert the filter sweep on note triggers.",
+          knobs: [
+            { name: "F-ATTACK", min: 0, max: 127, val: 8, unit: "", fmt: v => `${Math.round(5 + Math.pow(v/127, 2)*1995)}ms`, desc: "Filter sweep rise time." },
+            { name: "F-DECAY", min: 0, max: 127, val: 48, unit: "", fmt: v => `${(0.01 + Math.pow(v/127, 2)*2.49).toFixed(2)}s`, desc: "Filter sweep fall time." },
+            { name: "F-SUSTAIN", min: 0, max: 127, val: 44, unit: "", fmt: v => `${Math.round((v/127)*100)}%`, desc: "Held filter cutoff offset." },
+            { name: "F-ENV AMT", min: -100, max: 100, val: 56, unit: "%", fmt: v => `${v}%`, desc: "Bipolar modulation strength." }
+          ]
+        }
+      ]
+    },
+    LFO: {
+      subs: [
+        {
+          title: "LFO 1 MATRIX (1/3)",
+          sub: "11 modulation targets with built-in FX & amp spike protection",
+          note: "Targets: FLT1 CUT, FLT2 CUT, RESO, PITCH, PAN, SPREAD, AMP, CHORUS, PHASER, DELAY, REVERB.",
+          knobs: [
+            { name: "RATE", min: 0, max: 127, val: 38, unit: "", fmt: v => `${(0.05 + Math.pow(v/127, 2)*17.95).toFixed(2)}Hz`, desc: "Oscillation speed (0.05 Hz to 18 Hz)." },
+            { name: "DEPTH", min: 0, max: 100, val: 45, unit: "%", fmt: v => `${v}%`, desc: "Modulation intensity with automatic FX headroom compensation." },
+            { name: "DEST", min: 0, max: 10, val: 0, unit: "", fmt: v => ["CUT1","CUT2","RESO","PITCH","PAN","SPR","AMP","CHO","PHS","DLY","REV"][v], desc: "Destination parameter modulated by LFO 1." },
+            { name: "SHAPE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["SINE","TRI","SAW","S&H"][v], desc: "LFO waveform (Sine, Triangle, Sawtooth, Sample & Hold)." }
+          ]
+        },
+        {
+          title: "LFO 2 MATRIX (2/3)",
+          sub: "Independent second modulation lane",
+          note: "Combine slow Filter LFO 1 with rhythmic Pan, Pitch, or Phaser LFO 2 motion.",
+          knobs: [
+            { name: "RATE", min: 0, max: 127, val: 54, unit: "", fmt: v => `${(0.05 + Math.pow(v/127, 2)*17.95).toFixed(2)}Hz`, desc: "LFO 2 speed." },
+            { name: "DEPTH", min: 0, max: 100, val: 32, unit: "%", fmt: v => `${v}%`, desc: "LFO 2 depth." },
+            { name: "DEST", min: 0, max: 10, val: 4, unit: "", fmt: v => ["CUT1","CUT2","RESO","PITCH","PAN","SPR","AMP","CHO","PHS","DLY","REV"][v], desc: "Destination parameter for LFO 2." },
+            { name: "SHAPE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["SINE","TRI","SAW","S&H"][v], desc: "LFO 2 waveform." }
+          ]
+        },
+        {
+          title: "SWARM & GLIDE (3/3)",
+          sub: "Analog pitch drift, portamento glide & oscillator character",
+          note: "Swarm adds gentle organic per-voice drift across unison stacks.",
+          knobs: [
+            { name: "SWARM", min: 0, max: 100, val: 28, unit: "%", fmt: v => `${v}%`, desc: "Slow organic oscillator detune drift." },
+            { name: "SWM RATE", min: 1, max: 80, val: 16, unit: "", fmt: v => `${(v*0.05).toFixed(2)}Hz`, desc: "Drift modulation speed." },
+            { name: "GLIDE", min: 0, max: 85, val: 10, unit: "%", fmt: v => `${v}%`, desc: "Portamento pitch slide time between notes." },
+            { name: "KEYFLW", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Filter keyboard tracking." }
+          ]
+        }
+      ]
+    },
+    EDIT: {
+      subs: [
+        {
+          title: "OSC & UNISON (1/3)",
+          sub: "Dual oscillators, Hypersaw/Wavetable modes & unison voice stacking",
+          note: "Turn ALGO on EDIT (1/3) to cycle oscillator engine (HYPERSAW, SAW, PULSE, TRI, SYNC, WAVETABLE).",
+          knobs: [
+            { name: "OSC BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Mix between Oscillator 1 and Oscillator 2." },
+            { name: "OSC2 SEMI", min: -24, max: 24, val: 7, unit: "st", fmt: v => `${v>=0?"+":""}${v}st`, desc: "Oscillator 2 pitch offset in semitones (-24 to +24)." },
+            { name: "SPREAD", min: 0, max: 100, val: 65, unit: "%", fmt: v => `${v}%`, desc: "Unison / Hypersaw stereo detune spread." },
+            { name: "UNISON", min: 1, max: 5, val: 2, unit: "v", fmt: v => `${v}V`, desc: "Stacked unison voices per played note (1 to 5)." }
+          ]
+        },
+        {
+          title: "SUB / NOISE / RNG (2/3)",
+          sub: "Sub-octave weight, noise texture & ring modulation",
+          note: "Sub oscillator provides solid low-end foundation beneath resonant bandpass or sync leads.",
+          knobs: [
+            { name: "SUB LVL", min: 0, max: 100, val: 55, unit: "%", fmt: v => `${v}%`, desc: "Sub-oscillator level (-1 octave)." },
+            { name: "SUB WAVE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["SQR","SAW","SIN","TRI"][v], desc: "Sub-oscillator waveform shape." },
+            { name: "NOISE", min: 0, max: 100, val: 12, unit: "%", fmt: v => `${v}%`, desc: "White/pink noise generator level." },
+            { name: "RING MOD", min: 0, max: 100, val: 0, unit: "%", fmt: v => `${v}%`, desc: "Osc1 × Osc2 metallic ring modulation blend." }
+          ]
+        },
+        {
+          title: "SYNC / FM / DRV (3/3)",
+          sub: "Hard sync, FM cross-modulation, unison pan & drive",
+          note: "DRIVE lives cleanly here inside the Synth Edit engine (not duplicated on Home).",
+          knobs: [
+            { name: "HARD SYNC", min: 0, max: 1, val: 0, unit: "", fmt: v => v?"ON":"OFF", desc: "Locks Oscillator 2 phase to Oscillator 1." },
+            { name: "FM AMT", min: 0, max: 100, val: 15, unit: "%", fmt: v => `${v}%`, desc: "Linear frequency modulation amount from Osc 2 into Osc 1." },
+            { name: "UNI PAN", min: 0, max: 100, val: 75, unit: "%", fmt: v => `${v}%`, desc: "Stereo panning width across unison layers." },
+            { name: "DRIVE", min: 0, max: 100, val: 22, unit: "%", fmt: v => `${v}%`, desc: "Pre-filter analog saturation drive." }
+          ]
+        }
+      ]
+    },
+    ARP: {
+      subs: [
+        {
+          title: "ARP SETUP (1/2)",
+          sub: "Short-press ARP for ON/OFF; hold 0.5s or click again for rate & mode",
+          note: "Hold ARP + OCT+ to toggle Latch directly from any screen.",
+          knobs: [
+            { name: "ARP ON", min: 0, max: 1, val: 1, unit: "", fmt: v => v?"ON":"OFF", desc: "Enable or bypass arpeggiator." },
+            { name: "LATCH", min: 0, max: 1, val: 0, unit: "", fmt: v => v?"HOLD":"OFF", desc: "Holds arpeggiated notes after fingers leave keys." },
+            { name: "MODE", min: 0, max: 8, val: 0, unit: "", fmt: v => ["UP","DOWN","UP/DN","RND","CHORD","ALT","ROT-S","ROT-M","ROT-F"][v], desc: "9 arpeggio traversal patterns including Chord & Rotating rhythms." },
+            { name: "RATE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["1/4","1/8","1/16","1/32"][v], desc: "Clock division synced to master BPM." }
+          ]
+        },
+        {
+          title: "ARP GROOVE (2/2)",
+          sub: "Octave range, Euclidean density, gate length & accent",
+          note: "Lower Density drops off-beat steps for instant syncopated grooves.",
+          knobs: [
+            { name: "OCTAVES", min: 1, max: 4, val: 2, unit: "", fmt: v => `${v} OCT`, desc: "Span from 1 to 4 octaves." },
+            { name: "DENSITY", min: 15, max: 100, val: 100, unit: "%", fmt: v => `${v}%`, desc: "Step trigger probability / rhythmic density." },
+            { name: "GATE", min: 20, max: 95, val: 62, unit: "%", fmt: v => `${v}%`, desc: "Note duration before gate off." },
+            { name: "ACCENT", min: 0, max: 100, val: 35, unit: "%", fmt: v => `${v}%`, desc: "Downbeat velocity & cutoff boost." }
+          ]
+        }
+      ]
+    },
+    GLO: {
+      subs: [
+        {
+          title: "SCALE & CHORD (1/5)",
+          sub: "12 musical scales, root note, master tempo & one-finger chords",
+          note: "Scale lock snaps keyboard input cleanly to musical intervals.",
+          knobs: [
+            { name: "ROOT", min: 0, max: 11, val: 0, unit: "", fmt: v => ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][v], desc: "Root key for Scale Lock and Chord trigger." },
+            { name: "SCALE", min: 0, max: 11, val: 0, unit: "", fmt: v => ["CHROM","MAJOR","MINOR","DORIAN","PHRYG","LYDIAN","MIXOL","HARM","PENT+","PENT-","BLUES","WHL"][v], desc: "12 quantized musical scales." },
+            { name: "TEMPO", min: 40, max: 240, val: 120, unit: "BPM", fmt: v => `${v} BPM`, desc: "Master sequencer, arpeggiator, and delay clock (40–240 BPM)." },
+            { name: "CHORD", min: 0, max: 5, val: 0, unit: "", fmt: v => ["OFF","MAJ","MIN","7TH","SUS4","PWR5"][v], desc: "One-key chord generator mode." }
+          ]
+        },
+        {
+          title: "VOICE & SYSTEM (2/5)",
+          sub: "Loop recording length, sync, polyphony & swing",
+          note: "Synth looper records up to 16 bars with quantized loop playback and key LEDs.",
+          knobs: [
+            { name: "REC BARS", min: 1, max: 16, val: 2, unit: "", fmt: v => `${v} BAR`, desc: "Synth loop length (1 to 16 bars)." },
+            { name: "REC SYNC", min: 0, max: 1, val: 1, unit: "", fmt: v => v?"SYNC":"FREE", desc: "Quantize recording start to bar boundary." },
+            { name: "POLY", min: 1, max: 8, val: 8, unit: "v", fmt: v => `${v}V`, desc: "Voice polyphony allocation (1 mono up to 8 voices)." },
+            { name: "SWING", min: 50, max: 75, val: 52, unit: "%", fmt: v => `${v}%`, desc: "Shuffle timing applied to sequencer & arp 16th offbeats." }
+          ]
+        },
+        {
+          title: "COLOR & UI (3/5)",
+          sub: "OLED theme palette, mascot, octave & bar settings",
+          note: "Mascot subtly bounces to BPM, blinks on transients, and squints when resonance/drive peaks.",
+          knobs: [
+            { name: "OLED THEME", min: 0, max: 4, val: 0, unit: "", fmt: v => ["CYAN","AMBER","EMERALD","CORAL","MONO"][v], desc: "Switches OLED accent color theme." },
+            { name: "STARFISH", min: 0, max: 5, val: 0, unit: "", fmt: v => ["CORAL","GOLD","MINT","VIOLET","ICE","DISCO"][v], desc: "Selects top-right Starfish mascot palette." },
+            { name: "OCTAVE", min: -2, max: 2, val: 0, unit: "", fmt: v => `${v>=0?"+":""}${v}`, desc: "Master keyboard octave transposition." },
+            { name: "DRM BARS", min: 1, max: 4, val: 1, unit: "", fmt: v => `${v} BAR`, desc: "Drum pattern bar length (1–4 bars)." }
+          ]
+        },
+        {
+          title: "RANDOMIZER (4/5)",
+          sub: "Styled patch generator with Bank X safe commit",
+          note: "Randomizing asks to SAVE or DISCARD before overwriting unsaved changes.",
+          knobs: [
+            { name: "STYLE", min: 0, max: 4, val: 0, unit: "", fmt: v => ["LEAD","BASS","PAD","PLUCK","ARP"][v], desc: "Musical archetype for generated patches." },
+            { name: "GENERATE", min: 0, max: 1, val: 0, unit: "", fmt: () => "TURN K2", desc: "Turn K2 to roll a fresh patch matching the chosen style." },
+            { name: "CHAOS", min: 0, max: 100, val: 45, unit: "%", fmt: v => `${v}%`, desc: "Randomization variance intensity." },
+            { name: "SAVE -> X", min: 0, max: 127, val: 0, unit: "", fmt: v => `X${String(v).padStart(3,"0")}`, desc: "Target Bank X destination slot." }
+          ]
+        },
+        {
+          title: "MIDI & BT I/O (5/5)",
+          sub: "Synth/Drum MIDI channels, Bluetooth MIDI & independent SPK/HP level",
+          note: "USB Audio always sends full 44.1 kHz studio level even when SPK/HP is muted (OFF).",
+          knobs: [
+            { name: "SYNTH CH", min: 1, max: 16, val: 1, unit: "", fmt: v => `CH ${v}`, desc: "MIDI channel for Synth engine." },
+            { name: "DRUM CH", min: 1, max: 16, val: 10, unit: "", fmt: v => `CH ${v}`, desc: "MIDI channel for 8-voice Drum engine." },
+            { name: "BT MIDI", min: 0, max: 2, val: 2, unit: "", fmt: v => ["OFF","KYBD","PC+KYBD"][v], desc: "Bluetooth MIDI role (Off, External Keyboard, or Computer + Keyboard)." },
+            { name: "SPK / HP", min: 0, max: 4, val: 2, unit: "", fmt: v => ["OFF","QUIET","NORM","+3dB","+6dB"][v], desc: "Hardware speaker & headphone gain (independent of USB audio)." }
+          ]
+        }
+      ]
+    }
+  };
+
+  let curPage = "FX";
+  let curSub = 0;
+  let oledOverlay = null; // null | "boot" | "about"
+
+  const pageOrder = ["HOME", "FX", "SEL", "ENV", "LFO", "EDIT", "ARP", "GLO"];
+  const pageBtnsEl = document.getElementById("pageButtons");
+  const knobCtrlsEl = document.getElementById("knobControls");
+  const subIndEl = document.getElementById("subIndicator");
+  const inspTitleEl = document.getElementById("inspTitle");
+  const inspSubEl = document.getElementById("inspSub");
+  const inspKnobsEl = document.getElementById("inspKnobs");
+  const inspNoteEl = document.getElementById("inspNote");
+  const previewBootBtn = document.getElementById("previewBootBtn");
+  const previewAboutBtn = document.getElementById("previewAboutBtn");
+
+  function getSubSpec() {
+    const subs = PAGES[curPage].subs;
+    if (curSub >= subs.length) curSub = 0;
+    return { subs, spec: subs[curSub] };
+  }
+
+  function renderPanelControls() {
+    const { subs, spec } = getSubSpec();
+    previewBootBtn.classList.toggle("active", oledOverlay === "boot");
+    previewAboutBtn.classList.toggle("active", oledOverlay === "about");
+    pageBtnsEl.replaceChildren(...pageOrder.map(p => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ctrl-btn" + (p === curPage && !oledOverlay ? " active" : "");
+      btn.textContent = p;
+      btn.addEventListener("click", () => {
+        oledOverlay = null;
+        if (curPage === p) {
+          curSub = (curSub + 1) % PAGES[p].subs.length;
+        } else {
+          curPage = p;
+          curSub = 0;
+        }
+        renderPanelControls();
+      });
+      return btn;
+    }));
+
+    subIndEl.textContent = `${curSub + 1} / ${subs.length}`;
+
+    knobCtrlsEl.replaceChildren(...spec.knobs.map((k, idx) => {
+      const card = document.createElement("div");
+      card.className = "knob-card";
+      const top = document.createElement("div");
+      top.className = "knob-top";
+      const nm = document.createElement("span");
+      nm.className = "knob-name mono";
+      nm.textContent = `K${idx + 1} ${k.name}`;
+      const vl = document.createElement("span");
+      vl.className = "knob-val mono";
+      vl.textContent = k.fmt(k.val);
+      top.append(nm, vl);
+
+      const rng = document.createElement("input");
+      rng.type = "range";
+      rng.min = String(k.min);
+      rng.max = String(k.max);
+      rng.value = String(k.val);
+      rng.setAttribute("aria-label", `K${idx + 1} ${k.name}`);
+      rng.addEventListener("input", () => {
+        oledOverlay = null;
+        k.val = Number(rng.value);
+        vl.textContent = k.fmt(k.val);
+        renderPanelControls();
+      });
+      card.append(top, rng);
+      return card;
+    }));
+
+    renderInspector();
+  }
+
+  function renderInspector() {
+    if (oledOverlay === "boot") {
+      inspTitleEl.textContent = "BOOT SPLASH (STARFISH)";
+      inspSubEl.textContent = "Randomized 6-scene Starfish bootup animation with weather overlay & synth jingle";
+      const rows = [
+        ["BRAND BANNER", "STARFISH badge across top of the 240×240 OLED"],
+        ["6 ANIMATED ACTS", "Beach Chillin', Moon Explorer, Sub Captain, Campfire Jam, Rocket Skater, Chef"],
+        ["4 WEATHER OVERLAYS", "Snow, Rain + Puddles, Golden Sunbeams, and Breezy Wind"],
+        ["6 WELCOME JINGLES", "Played dynamically through a sanitized ROM preset (press any key to skip)"]
+      ];
+      inspKnobsEl.replaceChildren(...rows.map(([t, d]) => {
+        const li = document.createElement("li");
+        const hd = document.createElement("div"); hd.className = "kd-head";
+        const l = document.createElement("span"); l.textContent = t;
+        hd.append(l);
+        const p = document.createElement("p"); p.className = "kd-desc"; p.textContent = d;
+        li.append(hd, p);
+        return li;
+      }));
+      inspNoteEl.innerHTML = "<strong>Tip:</strong> Turning any encoder or pressing any button skips straight into live synth playback.";
+      return;
+    }
+    if (oledOverlay === "about") {
+      inspTitleEl.textContent = "ABOUT APP (OCT- + OCT+)";
+      inspSubEl.textContent = "Hidden chorusy Cmaj9 Easter egg & STARFISH hardware info card";
+      const rows = [
+        ["TRIGGER", "Press OCT- and OCT+ together on hardware or web panel (- and = on desktop)"],
+        ["AUDIO EFFECT", "Triggers a lush 3-voice Hypersaw Cmaj9 shimmer drenched in stereo BBD Chorus"],
+        ["OLED CARD", "Displays STARFISH version overview, voice count, ROM capacity & MPL-2.0 license"],
+        ["DISMISS", "Auto-closes after 6.5s or immediately on any key, button, or encoder move"]
+      ];
+      inspKnobsEl.replaceChildren(...rows.map(([t, d]) => {
+        const li = document.createElement("li");
+        const hd = document.createElement("div"); hd.className = "kd-head";
+        const l = document.createElement("span"); l.textContent = t;
+        hd.append(l);
+        const p = document.createElement("p"); p.className = "kd-desc"; p.textContent = d;
+        li.append(hd, p);
+        return li;
+      }));
+      inspNoteEl.innerHTML = "<strong>Note:</strong> Triggering OCT- + OCT+ reverts the first octave button step so your current keyboard octave stays intact.";
+      return;
+    }
+
+    const { spec } = getSubSpec();
+    inspTitleEl.textContent = spec.title;
+    inspSubEl.textContent = spec.sub;
+    inspKnobsEl.replaceChildren(...spec.knobs.map((k, idx) => {
+      const li = document.createElement("li");
+      const hd = document.createElement("div");
+      hd.className = "kd-head";
+      const l = document.createElement("span");
+      l.textContent = `K${idx + 1} · ${k.name}`;
+      const r = document.createElement("span");
+      r.className = "mono";
+      r.style.color = "var(--cyan)";
+      r.textContent = k.fmt(k.val);
+      hd.append(l, r);
+      const p = document.createElement("p");
+      p.className = "kd-desc";
+      p.textContent = k.desc;
+      li.append(hd, p);
+      return li;
+    }));
+    inspNoteEl.innerHTML = `<strong>Page Note:</strong> ${spec.note}`;
+  }
+
+  document.getElementById("prevSub").addEventListener("click", () => {
+    oledOverlay = null;
+    const len = PAGES[curPage].subs.length;
+    curSub = (curSub - 1 + len) % len;
+    renderPanelControls();
+  });
+  document.getElementById("nextSub").addEventListener("click", () => {
+    oledOverlay = null;
+    const len = PAGES[curPage].subs.length;
+    curSub = (curSub + 1) % len;
+    renderPanelControls();
+  });
+  previewBootBtn.addEventListener("click", () => {
+    oledOverlay = oledOverlay === "boot" ? null : "boot";
+    renderPanelControls();
+  });
+  previewAboutBtn.addEventListener("click", () => {
+    oledOverlay = oledOverlay === "about" ? null : "about";
+    renderPanelControls();
+  });
+
+  // Live 240x240 OLED Canvas preview
+  const oled = document.getElementById("oled");
+  const ctx = oled.getContext("2d");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function drawOled(nowMs) {
+    const t = reduceMotion.matches ? 0 : nowMs * 0.001;
+    const { spec } = getSubSpec();
+    const W = 240, H = 240;
+
+    ctx.fillStyle = "#07090e";
+    ctx.fillRect(0, 0, W, H);
+
+    if (oledOverlay === "boot") {
+      // Bootup Starfish Splash with STARFISH top banner
+      const sky = ctx.createLinearGradient(0, 0, 0, 186);
+      sky.addColorStop(0, "#0e172a");
+      sky.addColorStop(1, "#082f49");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, 186);
+      ctx.fillStyle = "#fb923c";
+      ctx.beginPath(); ctx.arc(185, 76, 20, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#0284c7";
+      ctx.fillRect(0, 102, W, 42);
+      ctx.fillStyle = "#fde68a";
+      ctx.beginPath(); ctx.ellipse(W / 2, 180, 145, 38, 0, Math.PI, Math.PI * 2); ctx.fill();
+
+      // Animated Starfish center
+      const bob = Math.sin(t * 3.0) * 3;
+      ctx.save();
+      ctx.translate(120, 114 + bob);
+      ctx.rotate(Math.sin(t * 1.8) * 0.12);
+      ctx.fillStyle = "#fb7185";
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const ang = (i * Math.PI) / 5 - Math.PI / 2;
+        const rad = i % 2 === 0 ? 28 : 13;
+        const px = Math.cos(ang) * rad, py = Math.sin(ang) * rad;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#0f172a";
+      ctx.beginPath(); ctx.arc(-6, -2, 2.6, 0, Math.PI * 2); ctx.arc(6, -2, 2.6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      // Top STARFISH banner
+      ctx.fillStyle = "rgba(9,13,22,0.86)";
+      ctx.beginPath(); ctx.roundRect(62, 6, W - 124, 21, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(34,211,238,0.55)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#f8fafc"; ctx.font = "800 13px sans-serif";
+      ctx.fillText("STARFISH", W / 2, 21);
+
+      // Footer
+      ctx.fillStyle = "#090d16"; ctx.fillRect(0, 186, W, 54);
+      ctx.fillStyle = "#22d3ee"; ctx.font = "800 12px monospace";
+      ctx.fillText("STARFISH · BEACH CHILLIN'", W / 2, 204);
+      ctx.fillStyle = "#cbd5e1"; ctx.font = "600 10px monospace";
+      ctx.fillText("SUNNY SHINE · REEF ARPS · I000", W / 2, 221);
+      ctx.fillStyle = "#1e293b"; ctx.fillRect(20, 230, 200, 4);
+      ctx.fillStyle = "#22d3ee"; ctx.fillRect(20, 230, ((t * 55) % 200), 4);
+      ctx.textAlign = "left";
+      return;
+    }
+
+    if (oledOverlay === "about") {
+      // About App Easter Egg Screen (OCT- + OCT+)
+      ctx.fillStyle = "#090d16"; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "#0d131f"; ctx.fillRect(0, 0, W, 34);
+      ctx.fillStyle = "#22d3ee"; ctx.font = "800 11px monospace";
+      ctx.fillText("ABOUT APP", 10, 21);
+      ctx.strokeStyle = "rgba(34,211,238,0.28)";
+      ctx.beginPath(); ctx.moveTo(0, 34.5); ctx.lineTo(W, 34.5); ctx.stroke();
+
+      ctx.fillStyle = "#fb7185";
+      ctx.beginPath();
+      const bounce = Math.sin(t * 4) * 1.2;
+      for (let i = 0; i < 10; i++) {
+        const ang = (i * Math.PI) / 5 - Math.PI / 2;
+        const rad = i % 2 === 0 ? 10 : 4.6;
+        const sx = 221 + Math.cos(ang) * rad, sy = 17 + bounce + Math.sin(ang) * rad;
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
+      ctx.closePath(); ctx.fill();
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#f8fafc"; ctx.font = "800 26px sans-serif";
+      ctx.fillText("STARFISH", W / 2, 74);
+      ctx.fillStyle = "#22d3ee"; ctx.font = "700 10.5px monospace";
+      ctx.fillText("FM-1 SYNTH & GROOVEBOX", W / 2, 93);
+
+      ctx.fillStyle = "#101624"; ctx.fillRect(12, 106, W - 24, 78);
+      ctx.strokeStyle = "rgba(148,163,184,0.25)"; ctx.strokeRect(12.5, 106.5, W - 25, 77);
+      ctx.fillStyle = "#e2e8f0"; ctx.font = "700 10px monospace";
+      ctx.fillText("8-VOICE VA · DUAL FILTERS", W / 2, 125);
+      ctx.fillStyle = "#94a3b8";
+      ctx.fillText("4-ICON FX RACK · 10 DRUM KITS", W / 2, 143);
+      ctx.fillText("288 ROM PRESETS · 128 BANK X", W / 2, 161);
+      ctx.fillStyle = "#34d399";
+      ctx.fillText("FOR M-VAVE FM-1 · MPL-2.0", W / 2, 177);
+
+      ctx.fillStyle = "#a78bfa"; ctx.font = "700 10px monospace";
+      ctx.fillText("CHORUSY C MAJ9 SHIMMER", W / 2, 204);
+      ctx.fillStyle = "#64748b"; ctx.font = "600 9.5px monospace";
+      ctx.fillText("PRESS ANY KEY OR BUTTON", W / 2, 224);
+      ctx.textAlign = "left";
+      return;
+    }
+
+    // Top Header Bar
+    ctx.fillStyle = "#0d131f";
+    ctx.fillRect(0, 0, W, 38);
+    ctx.fillStyle = "#22d3ee";
+    ctx.font = "800 10px monospace";
+    ctx.fillText("I000 Star Phaser Pad", 10, 15);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "700 9px monospace";
+    ctx.fillText("120 BPM", 162, 15);
+
+    // Starfish mascot mini glyph top-right
+    const bounce = Math.sin(t * 4) * 1.2;
+    ctx.fillStyle = "#fb7185";
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const ang = (i * Math.PI) / 5 - Math.PI / 2;
+      const rad = i % 2 === 0 ? 10 : 4.6;
+      const sx = 221 + Math.cos(ang) * rad;
+      const sy = 19 + bounce + Math.sin(ang) * rad;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Title Banner
+    ctx.fillStyle = "#0b101b";
+    ctx.fillRect(0, 40, W, 38);
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "800 14px sans-serif";
+    ctx.fillText(spec.title, 10, 62);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "600 8.5px monospace";
+    ctx.fillText(spec.knobs.map(k => k.name).join(" · "), 10, 74, W - 20);
+
+    // Center Stage Visualization matching hardware
+    const ks = spec.knobs;
+    if (curPage === "FX") {
+      const cols = curSub === 1 ? ["#22d3ee", "#fbbf24", "#34d399", "#f97316"] : ["#22d3ee", "#34d399", "#fbbf24", "#f97316"];
+      ks.forEach((k, i) => {
+        const bx = 11 + i * 56, by = 88, bw = 50, cx = bx + 25, cy = by + 20;
+        const satType = i === 3 && curSub === 1 ? ["soft","tube","hard","off"][k.val] : "";
+        const norm = i === 3 && curSub === 1
+          ? (k.val === 3 ? 0 : k.val === 0 ? 0.35 : k.val === 1 ? 0.70 : 1.0)
+          : Math.max(0, Math.min(1, (k.val - k.min) / Math.max(1, k.max - k.min)));
+        const active = norm > 0.02;
+        const ink = active ? cols[i] : "#475569";
+        const dimInk = active ? ink + "66" : "#334155";
+        ctx.fillStyle = "#0c111d";
+        ctx.fillRect(bx, by, bw, 66);
+        ctx.strokeStyle = active ? ink + "55" : "#1e293b";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, 65);
+
+        if (curSub === 0 && i === 0) {
+          // CHO: Dual water-ripple wave arcs
+          const drift = active ? Math.sin(t * 1.4) * (1.2 + norm * 1.8) : 0;
+          ctx.strokeStyle = dimInk; ctx.lineWidth = 1.3;
+          ctx.beginPath(); ctx.arc(cx, cy + 5, 11, Math.PI * 1.18, Math.PI * 1.82); ctx.stroke();
+          ctx.strokeStyle = ink;
+          ctx.beginPath(); ctx.arc(cx + drift, cy + 1, 8, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx - drift * 0.7, cy - 3, 4.5, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+          if (active) {
+            ctx.fillStyle = "#e0f2fe";
+            ctx.fillRect(cx - 5, cy - 9, 1.5, 1.5);
+            ctx.fillRect(cx + 4, cy - 7, 1.5, 1.5);
+          }
+        } else if (curSub === 0 && i === 1) {
+          // PHS: Force-field energy filament + gliding electric node
+          const nx = active ? Math.sin(t * 1.8) * (2.5 + norm * 5.0) : 0;
+          ctx.strokeStyle = dimInk; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.moveTo(cx - 12, cy - 1); ctx.quadraticCurveTo(cx + nx * 0.5, cy - 8, cx + 12, cy - 1); ctx.stroke();
+          ctx.strokeStyle = ink;
+          ctx.beginPath(); ctx.moveTo(cx - 12, cy - 1); ctx.quadraticCurveTo(cx - nx * 0.5, cy + 6, cx + 12, cy - 1); ctx.stroke();
+          ctx.fillStyle = active ? "#fff" : "#475569";
+          ctx.beginPath(); ctx.arc(cx + nx, cy - 1, 2, 0, Math.PI * 2); ctx.fill();
+        } else if (curSub === 0 && i === 2) {
+          // DLY: Staggered comet echo trail diamonds
+          const ping = 0.5 + 0.5 * Math.cos(t * 3.1);
+          [{ ox: -8, r: 4.5, c: ink }, { ox: 0, r: 3.5, c: ping > 0.65 ? "#fff" : ink }, { ox: 8, r: 2.5, c: ping > 0.45 ? ink : dimInk }].forEach(tp => {
+            ctx.strokeStyle = tp.c; ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(cx + tp.ox, cy - 1 - tp.r);
+            ctx.lineTo(cx + tp.ox + tp.r, cy - 1);
+            ctx.lineTo(cx + tp.ox, cy - 1 + tp.r);
+            ctx.lineTo(cx + tp.ox - tp.r, cy - 1);
+            ctx.closePath(); ctx.stroke();
+          });
+        } else if (curSub === 0 && i === 3) {
+          // REV: Magic aura orb + calm rising embers
+          const br = active ? 0.5 + 0.5 * Math.sin(t * 1.1) : 0;
+          ctx.strokeStyle = dimInk; ctx.lineWidth = 1.1;
+          ctx.beginPath(); ctx.arc(cx, cy, 9 + br * 1.2, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = ink;
+          ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.stroke();
+          if (active) {
+            const rise = (t * 5) % 8;
+            ctx.fillStyle = "#fdba74"; ctx.fillRect(cx - 5, cy - 3 - rise * 0.6, 1.5, 1.5);
+            ctx.fillStyle = "#22d3ee"; ctx.fillRect(cx + 4, cy - 1 - ((rise + 4) % 8) * 0.6, 1.5, 1.5);
+            ctx.fillStyle = "#fff"; ctx.fillRect(cx - 0.7, cy - 0.7, 1.6, 1.6);
+          }
+        } else if (curSub === 1 && i === 0) {
+          // DMX: Twin energy beam splitter
+          const wetLen = Math.round(4 + norm * 16);
+          const pulseX = active ? ((t * 16) % Math.max(4, wetLen)) : 0;
+          ctx.strokeStyle = "#475569"; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.moveTo(cx - 11, cy - 5); ctx.lineTo(cx + 5, cy - 5); ctx.stroke();
+          ctx.fillStyle = dimInk; ctx.fillRect(cx - 11, cy + 1, 22, 3);
+          ctx.fillStyle = ink; ctx.fillRect(cx - 11, cy + 1, wetLen, 3);
+          if (active) { ctx.fillStyle = "#fff"; ctx.fillRect(cx - 11 + pulseX, cy + 0.5, 2, 4); }
+        } else if (curSub === 1 && i === 1) {
+          // DFB: Spiral portal vortex arcs with orbiting motes
+          const pips = active ? 1 + Math.floor(norm * 2) : 0;
+          ctx.strokeStyle = dimInk; ctx.lineWidth = 1.3;
+          ctx.beginPath(); ctx.arc(cx, cy - 1, 9, 0.3, Math.PI + 0.1); ctx.stroke();
+          ctx.strokeStyle = ink;
+          ctx.beginPath(); ctx.arc(cx, cy - 1, 9, Math.PI + 0.3, Math.PI * 2 + 0.1); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx, cy - 1, 4.5, 0.8, Math.PI * 1.9); ctx.stroke();
+          for (let pk = 0; pk < pips; pk++) {
+            const ang = t * 1.7 - pk * 1.2;
+            ctx.fillStyle = pk === 0 ? "#fff" : ink;
+            ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * 9, cy - 1 + Math.sin(ang) * 9, pk === 0 ? 1.8 : 1.1, 0, Math.PI * 2); ctx.fill();
+          }
+        } else if (curSub === 1 && i === 2) {
+          // PHZ: Lightning crest sweep
+          const sx = active ? Math.sin(t * 1.9) * 7 : 0;
+          ctx.strokeStyle = dimInk; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.moveTo(cx - 12, cy + 4); ctx.lineTo(cx + 12, cy + 4); ctx.stroke();
+          ctx.strokeStyle = ink;
+          ctx.beginPath(); ctx.moveTo(cx + sx - 5, cy + 4); ctx.lineTo(cx + sx - 1, cy - 3); ctx.lineTo(cx + sx + 2, cy - 1); ctx.lineTo(cx + sx + 5, cy - 8); ctx.stroke();
+          ctx.fillStyle = active ? "#fff" : "#475569"; ctx.fillRect(cx + sx + 4, cy - 9, 2, 2);
+        } else {
+          // SAT: Stylized flame / ember core
+          const sway = satType !== "off" && active ? Math.sin(t * 2.6) * 0.9 : 0;
+          if (satType === "off") {
+            ctx.strokeStyle = "#334155"; ctx.lineWidth = 1.1;
+            ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = "#475569"; ctx.fillRect(cx - 1, cy - 1, 2, 2);
+          } else {
+            const h = satType === "soft" ? 11 : satType === "tube" ? 14 : 16;
+            ctx.strokeStyle = ink; ctx.lineWidth = 1.3;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy + 8);
+            ctx.quadraticCurveTo(cx - 8, cy + 4, cx + sway, cy + 8 - h);
+            ctx.quadraticCurveTo(cx + 8, cy + 4, cx, cy + 8);
+            ctx.stroke();
+            if (satType === "tube" || satType === "hard") {
+              ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx + sway * 0.5, cy + 3, 2, 0, Math.PI * 2); ctx.fill();
+            }
+            if (satType === "hard") {
+              ctx.fillStyle = "#fbbf24"; ctx.fillRect(cx - 6, cy - 2, 1.5, 1.5);
+              ctx.fillStyle = "#fff"; ctx.fillRect(cx + 5, cy - 4, 1.5, 1.5);
+            }
+          }
+        }
+        ctx.fillStyle = active ? "#f8fafc" : "#64748b";
+        ctx.font = "800 9.5px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(curSub === 1 && i === 3 ? ["SFT","TUB","HRD","OFF"][k.val] : k.name.slice(0, 3), cx, by + 50);
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(bx + 6, by + 56, bw - 12, 4);
+        ctx.fillStyle = ink;
+        ctx.fillRect(bx + 6, by + 56, Math.round((bw - 12) * norm), 4);
+      });
+      ctx.textAlign = "left";
+    } else if (curPage === "SEL" || (curPage === "HOME" && curSub === 0)) {
+      const c1 = (ks[0].val - ks[0].min) / (ks[0].max - ks[0].min);
+      const res = curPage === "HOME" ? ks[1].val / 127 : 0.35;
+      ctx.strokeStyle = "#22d3ee";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      for (let i = 0; i <= 50; i++) {
+        const nx = i / 50;
+        const d = nx - Math.max(0.08, Math.min(0.92, c1));
+        const mag = Math.min(1.05, (1 / (1 + Math.exp(d * 18))) * 0.7 + res * 0.4 * Math.exp(-Math.pow(d / 0.07, 2)));
+        const x = 14 + nx * 212, y = 152 - mag * 46;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    } else if (curPage === "ENV") {
+      const a = 12 + (ks[0].val / 127) * 50, d = 24 + (ks[1].val / 127) * 56, s = 152 - (ks[2].val / 127) * 48;
+      ctx.strokeStyle = curSub === 1 ? "#fbbf24" : "#22d3ee";
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(14, 152); ctx.lineTo(14 + a, 98); ctx.lineTo(14 + a + d, s); ctx.lineTo(185, s); ctx.lineTo(226, 152);
+      ctx.stroke();
+    } else if (curPage === "LFO" && curSub < 2) {
+      const sh = ks[3].val, dp = Math.max(0.2, ks[1].val / 100), rt = 0.8 + (ks[0].val / 127) * 4;
+      ctx.strokeStyle = curSub === 0 ? "#34d399" : "#a78bfa";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      for (let i = 0; i <= 70; i++) {
+        const x = 14 + i * 3, ph = (i / 35) * Math.PI * 2 + t * rt;
+        let w = Math.sin(ph);
+        if (sh === 1) w = (2 / Math.PI) * Math.asin(Math.sin(ph));
+        else if (sh === 2) w = 2 * ((ph / (2 * Math.PI)) % 1) - 1;
+        else if (sh === 3) w = Math.sin(Math.floor(ph * 1.3) * 19.7);
+        const y = 124 - w * 22 * dp;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    } else {
+      // Clean 4-meter stage summary
+      ks.forEach((k, i) => {
+        const norm = Math.max(0, Math.min(1, (k.val - k.min) / Math.max(1, k.max - k.min)));
+        const y = 94 + i * 16;
+        ctx.fillStyle = "#94a3b8"; ctx.font = "700 9px monospace";
+        ctx.fillText(k.name.slice(0, 8), 12, y + 8);
+        ctx.fillStyle = "#141b29"; ctx.fillRect(80, y, 108, 10);
+        ctx.fillStyle = ["#22d3ee","#fbbf24","#34d399","#f97316"][i];
+        ctx.fillRect(80, y, Math.round(108 * norm), 10);
+        ctx.fillStyle = "#f8fafc"; ctx.textAlign = "right";
+        ctx.fillText(k.fmt(k.val), 228, y + 8);
+        ctx.textAlign = "left";
+      });
+    }
+
+    // Bottom 2x2 Parameter Dock
+    ks.forEach((k, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const x = 8 + col * 114, y = 166 + row * 34;
+      ctx.fillStyle = "#121824";
+      ctx.fillRect(x, y, 108, 30);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "700 8.5px monospace";
+      ctx.fillText(k.name, x + 6, y + 11);
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "800 10px monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(k.fmt(k.val), x + 102, y + 23);
+      ctx.textAlign = "left";
+    });
+  }
+
+  let animId = 0;
+  function tick(ts) {
+    drawOled(ts);
+    if (!reduceMotion.matches) animId = requestAnimationFrame(tick);
+  }
+  animId = requestAnimationFrame(tick);
+
+  // Reference Tabs
+  const refTabsEl = document.getElementById("refTabs");
+  const refBodyEl = document.getElementById("refTableBody");
+  let activeRefTab = "HOME";
+
+  function renderRefTable() {
+    refTabsEl.replaceChildren(...pageOrder.map(p => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tab-btn" + (p === activeRefTab ? " active" : "");
+      b.textContent = p;
+      b.addEventListener("click", () => { activeRefTab = p; renderRefTable(); });
+      return b;
+    }));
+    const rows = [];
+    PAGES[activeRefTab].subs.forEach(s => {
+      s.knobs.forEach((k, idx) => {
+        const tr = document.createElement("tr");
+        const c1 = document.createElement("td"); c1.className = "mono"; c1.textContent = `${s.title.split("(")[0].trim()} · K${idx+1}`;
+        const c2 = document.createElement("td"); c2.style.fontWeight = "600"; c2.textContent = k.name;
+        const c3 = document.createElement("td"); c3.className = "mono"; c3.textContent = `${k.fmt(k.min)} .. ${k.fmt(k.max)}`;
+        const c4 = document.createElement("td"); c4.textContent = k.desc;
+        tr.append(c1, c2, c3, c4);
+        rows.push(tr);
+      });
+    });
+    refBodyEl.replaceChildren(...rows);
+  }
+
+  // Interactive 27-Key Map
+  const DRUM_VOICES = ["BD", "SD", "CH", "OH", "CP", "TM", "RD", "RS"];
+  const DRUM_KITS = ["TR-808", "TR-909", "FM ACOUSTIC", "CRISP DIGI", "GLITCH", "INDUSTRIAL", "ANALOG", "ACOUSTIC", "8-BIT", "STARFISH"];
+  const WHITE_NOTES = ["C", "D", "E", "F", "G", "A", "B", "C2", "D2", "E2", "F2", "G2", "A2", "B2", "C3", "D3"];
+  const BLACK_LAYOUT = [
+    { idx: 0, note: "C#", voice: "BD Kick" },
+    { idx: 1, note: "D#", voice: "SD Snare" },
+    { gap: true },
+    { idx: 2, note: "F#", voice: "CH Hat" },
+    { idx: 3, note: "G#", voice: "OH Hat" },
+    { idx: 4, note: "A#", voice: "CP Clap" },
+    { gap: true },
+    { idx: 5, note: "C#2", voice: "TM Tom" },
+    { idx: 6, note: "D#2", voice: "RD Ride" },
+    { gap: true },
+    { idx: 7, note: "F#2", voice: "RS Rim" },
+    { idx: 8, note: "G#2", voice: "ALT" },
+    { idx: 9, note: "A#2", voice: "SYNC" },
+    { gap: true },
+    { idx: 10, note: "C#3", voice: "MUTE/CLR" }
+  ];
+
+  let kbMode = "synth";
+  let selTrack = 0;
+  let selKit = 0;
+  const muted = new Set();
+  const steps = Array.from({ length: 8 }, (_, t) => new Set(t === 0 ? [0, 4, 8, 12] : t === 1 ? [4, 12] : t === 2 ? [0,2,4,6,8,10,12,14] : []));
+  const synthLit = new Set([0, 4, 7]);
+
+  const modeSynthBtn = document.getElementById("modeSynthBtn");
+  const modeSeqBtn = document.getElementById("modeSeqBtn");
+  const kitNextBtn = document.getElementById("kitNextBtn");
+  const seqStatus = document.getElementById("seqStatus");
+  const seqHelp = document.getElementById("seqHelp");
+  const blackRow = document.getElementById("blackKeysRow");
+  const whiteRow = document.getElementById("whiteKeysRow");
+
+  function renderKeyboard() {
+    modeSynthBtn.classList.toggle("active", kbMode === "synth");
+    modeSeqBtn.classList.toggle("active", kbMode === "seq");
+    kitNextBtn.textContent = `Kit: ${DRUM_KITS[selKit]}`;
+    seqStatus.textContent = kbMode === "synth"
+      ? "Synth playback illuminates active chord/melody keys"
+      : `Selected Track: ${DRUM_VOICES[selTrack]} · ${steps[selTrack].size} active steps${muted.has(selTrack) ? " · MUTED" : ""}`;
+    seqHelp.textContent = kbMode === "synth"
+      ? "Click white keys to toggle chord highlights. Real recorded synth loops illuminate each played capsule key during playback."
+      : "Top black keys 1–8 select drum track (BD..RS), top-right key toggles Mute (hold 0.6s on hardware to Clear). Bottom 16 white keys toggle steps 1–16.";
+
+    blackRow.replaceChildren(...BLACK_LAYOUT.map(slot => {
+      if (slot.gap) {
+        const g = document.createElement("div"); g.className = "cap-key gap"; return g;
+      }
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "cap-key black";
+      if (kbMode === "seq") {
+        if (slot.idx < 8) {
+          if (slot.idx === selTrack) b.classList.add("drum-sel");
+          if (muted.has(slot.idx)) b.classList.add("muted");
+          b.innerHTML = `${DRUM_VOICES[slot.idx]}<span class="cap-sub">${slot.note}</span>`;
+          b.addEventListener("click", () => { selTrack = slot.idx; renderKeyboard(); });
+        } else if (slot.idx === 10) {
+          b.classList.toggle("muted", muted.has(selTrack));
+          b.innerHTML = `MUTE<span class="cap-sub">CLR</span>`;
+          b.addEventListener("click", () => {
+            if (muted.has(selTrack)) muted.delete(selTrack); else muted.add(selTrack);
+            renderKeyboard();
+          });
+        } else {
+          b.innerHTML = `${slot.voice}<span class="cap-sub">${slot.note}</span>`;
+        }
+      } else {
+        b.innerHTML = `${slot.note}<span class="cap-sub">KEY</span>`;
+      }
+      return b;
+    }));
+
+    whiteRow.replaceChildren(...WHITE_NOTES.map((wn, idx) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "cap-key";
+      if (kbMode === "seq") {
+        const on = steps[selTrack].has(idx);
+        if (on) b.classList.add("lit");
+        b.innerHTML = `${idx + 1}<span class="cap-sub">${on ? "ON" : "·"}</span>`;
+        b.addEventListener("click", () => {
+          if (steps[selTrack].has(idx)) steps[selTrack].delete(idx); else steps[selTrack].add(idx);
+          renderKeyboard();
+        });
+      } else {
+        const lit = synthLit.has(idx);
+        if (lit) b.classList.add("lit");
+        b.innerHTML = `${wn}<span class="cap-sub">${lit ? "NOTE" : "·"}</span>`;
+        b.addEventListener("click", () => {
+          if (synthLit.has(idx)) synthLit.delete(idx); else synthLit.add(idx);
+          renderKeyboard();
+        });
+      }
+      return b;
+    }));
+  }
+
+  modeSynthBtn.addEventListener("click", () => { kbMode = "synth"; renderKeyboard(); });
+  modeSeqBtn.addEventListener("click", () => { kbMode = "seq"; renderKeyboard(); });
+  kitNextBtn.addEventListener("click", () => { selKit = (selKit + 1) % DRUM_KITS.length; renderKeyboard(); });
+
+  // Searchable 288-Preset Directory
+  const bankFilterEl = document.getElementById("bankFilterTabs");
+  const presetSearchEl = document.getElementById("presetSearch");
+  const presetGridEl = document.getElementById("presetGrid");
+  const presetCountEl = document.getElementById("presetCount");
+  const bankFilters = ["ALL", "A", "B", "C", "D", "E", "F", "G", "H", "I"];
+  let activeBankFilter = "ALL";
+
+  function renderPresets() {
+    bankFilterEl.replaceChildren(...bankFilters.map(bf => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tab-btn" + (bf === activeBankFilter ? " active" : "");
+      b.textContent = bf === "ALL" ? "All (288)" : `Bank ${bf}`;
+      b.addEventListener("click", () => { activeBankFilter = bf; renderPresets(); });
+      return b;
+    }));
+    const q = presetSearchEl.value.trim().toLowerCase();
+    const list = ROM_DATA.filter(p => {
+      if (activeBankFilter !== "ALL" && p.bank !== activeBankFilter) return false;
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || p.role.toLowerCase().includes(q);
+    });
+    presetCountEl.textContent = `${list.length} presets`;
+    presetGridEl.replaceChildren(...list.map(p => {
+      const card = document.createElement("div");
+      card.className = "preset-item";
+      const code = document.createElement("span");
+      code.className = "preset-code mono";
+      code.textContent = `${p.code} · ${p.cat}`;
+      const nm = document.createElement("span");
+      nm.className = "preset-name";
+      nm.textContent = p.name;
+      const rl = document.createElement("span");
+      rl.className = "preset-cat";
+      rl.textContent = p.role;
+      card.append(code, nm, rl);
+      return card;
+    }));
+  }
+
+  presetSearchEl.addEventListener("input", renderPresets);
+
+  renderPanelControls();
+  renderRefTable();
+  renderKeyboard();
+  renderPresets();
+})();
+</script>
+</body>
+</html>

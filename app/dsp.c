@@ -269,17 +269,18 @@ static int16_t rev_a1[REV_A1] PLAT_POOL;
 static int16_t rev_pre[REV_PRE] PLAT_POOL;
 static float wt_bank[8][64] PLAT_POOL;
 
-static const uint8_t J_NOTES[6][5] = {
+static const uint8_t J_NOTES[7][5] = {
     {60u, 64u, 67u, 71u, 74u},
     {62u, 67u, 69u, 74u, 79u},
     {64u, 67u, 69u, 71u, 76u},
     {60u, 67u, 65u, 64u, 72u},
     {57u, 64u, 69u, 71u, 76u},
     {60u, 62u, 64u, 67u, 72u},
+    {60u, 64u, 67u, 71u, 74u},
 };
-static const uint16_t J_STEP_SAMP[6] = {5733u, 5512u, 5292u, 5512u, 5953u, 4851u};
-static const uint16_t J_HOLD_SAMP[6] = {5045u, 4851u, 4657u, 4851u, 5239u, 4269u};
-static const uint16_t J_LAST_SAMP[6] = {13759u, 13229u, 12701u, 13229u, 14287u, 11642u};
+static const uint16_t J_STEP_SAMP[7] = {5733u, 5512u, 5292u, 5512u, 5953u, 4851u, 1984u};
+static const uint32_t J_HOLD_SAMP[7] = {5045u, 4851u, 4657u, 4851u, 5239u, 4269u, 41000u};
+static const uint32_t J_LAST_SAMP[7] = {13759u, 13229u, 12701u, 13229u, 14287u, 11642u, 46000u};
 
 static struct {
     sf_engine_cfg_t *cfg;
@@ -322,6 +323,7 @@ static struct {
     uint32_t jingle_sample_pos;
     uint32_t jingle_rel_at[5];
     uint8_t jingle_rel_done[5];
+    uint32_t jingle_tail_rem;
     sf_preset_t jingle_patch;
     sf_dsp_vis_t vis;
     float vis_bands_f[32];
@@ -426,6 +428,7 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     dsp.del_clr_rem = 0u;
     dsp.rev_cleared = 1u;
     dsp.jingle_active = 0u;
+    dsp.jingle_tail_rem = 0u;
     init_wavetable_lut();
     for (i = 0; i < SF_MAX_VOICES; i++) {
         dsp.voices[i].active = 0u;
@@ -543,6 +546,7 @@ void sf_dsp_start_jingle(uint8_t jingle_idx, const sf_preset_t *jp)
     dsp.jingle_idx = (uint8_t)(jingle_idx % 6u);
     dsp.jingle_step = 0u;
     dsp.jingle_sample_pos = 0u;
+    dsp.jingle_tail_rem = 0u;
     for (i = 0; i < 5u; i++) {
         dsp.jingle_rel_at[i] = 0u;
         dsp.jingle_rel_done[i] = 0u;
@@ -560,6 +564,59 @@ void sf_dsp_start_jingle(uint8_t jingle_idx, const sf_preset_t *jp)
         if (sf_f1_type(&dsp.jingle_patch) == SF_FLT_LP && dsp.jingle_patch.f1_cut < 72u)
             dsp.jingle_patch.f1_cut = 78u;
         dsp.jingle_patch.glide = 0u;
+    }
+    dsp.jingle_active = 1u;
+    plat_unlock(f);
+}
+
+void sf_dsp_start_easter_egg(void)
+{
+    uint32_t i;
+    uint32_t f = plat_lock();
+    uint8_t *dst = (uint8_t *)&dsp.jingle_patch;
+    for (i = 0; i < (uint32_t)sizeof(sf_preset_t); i++)
+        dst[i] = 0u;
+    dsp.jingle_patch.osc_meta = (uint8_t)(SF_OSC_HYPERSAW);
+    dsp.jingle_patch.unison_poly = (uint8_t)(2u | (7u << 3)); /* 3-voice unison, 8-voice poly */
+    dsp.jingle_patch.osc2_detune = 8u;
+    dsp.jingle_patch.osc_bal = 50u;
+    dsp.jingle_patch.pw = 64u;
+    dsp.jingle_patch.spread = 68u;
+    dsp.jingle_patch.sub_vol = 28u;
+    dsp.jingle_patch.f2_type_route = (uint8_t)(SF_FLT_LP | (SF_FLT_LP << 2) | (SF_ROUTE_SER << 4) | (SF_SAT_SOFT << 6));
+    dsp.jingle_patch.f1_cut = 88u;
+    dsp.jingle_patch.f1_res = 22u;
+    dsp.jingle_patch.f2_cut = 110u;
+    dsp.jingle_patch.f2_res = 12u;
+    dsp.jingle_patch.f_bal = 35u;
+    dsp.jingle_patch.f_keyfollow = 45u;
+    dsp.jingle_patch.f1_env_s = 32;
+    dsp.jingle_patch.a_atk = 18u;
+    dsp.jingle_patch.a_dec = 54u;
+    dsp.jingle_patch.a_sus = 92u;
+    dsp.jingle_patch.a_rel = 64u;
+    dsp.jingle_patch.f_atk = 20u;
+    dsp.jingle_patch.f_dec = 52u;
+    dsp.jingle_patch.f_sus = 68u;
+    dsp.jingle_patch.f_rel = 58u;
+    dsp.jingle_patch.fx_chorus = 98u;
+    dsp.jingle_patch.fx_phaser = 14u;
+    dsp.jingle_patch.fx_phaser_rate = 5u;
+    dsp.jingle_patch.fx_del_time = 28u;
+    dsp.jingle_patch.fx_del_mix = 26u;
+    dsp.jingle_patch.fx_del_fb = 34u;
+    dsp.jingle_patch.fx_reverb = 56u;
+    dsp.jingle_patch.fx_drive = 12u;
+    dsp.jingle_patch.uni_pan = 85u;
+    sf_set_tilt_eq(&dsp.jingle_patch, 2);
+    sf_set_ms_width_idx(&dsp.jingle_patch, 12); /* 160% stereo width */
+    dsp.jingle_idx = 6u;
+    dsp.jingle_step = 0u;
+    dsp.jingle_sample_pos = 0u;
+    dsp.jingle_tail_rem = 36000u;
+    for (i = 0; i < 5u; i++) {
+        dsp.jingle_rel_at[i] = 0u;
+        dsp.jingle_rel_done[i] = 0u;
     }
     dsp.jingle_active = 1u;
     plat_unlock(f);
@@ -1009,7 +1066,7 @@ static float block_r[256] PLAT_POOL;
 
 static PLAT_RAM_CODE void step_boot_jingle(uint32_t n)
 {
-    uint32_t j = dsp.jingle_idx < 6u ? dsp.jingle_idx : 0u;
+    uint32_t j = dsp.jingle_idx < 7u ? dsp.jingle_idx : 0u;
     uint32_t step_samp = J_STEP_SAMP[j];
     uint32_t i;
     while (dsp.jingle_step < 5u && dsp.jingle_sample_pos >= dsp.jingle_step * step_samp) {
@@ -1026,7 +1083,7 @@ static PLAT_RAM_CODE void step_boot_jingle(uint32_t n)
     for (i = 0; i < dsp.jingle_step && i < 5u; i++) {
         if (!dsp.jingle_rel_done[i]) {
             if (dsp.jingle_sample_pos >= dsp.jingle_rel_at[i]) {
-                internal_note_off(J_NOTES[dsp.jingle_idx][i]);
+                internal_note_off(J_NOTES[j][i]);
                 dsp.jingle_rel_done[i] = 1u;
             } else {
                 pending_rel = 1u;
@@ -1035,7 +1092,12 @@ static PLAT_RAM_CODE void step_boot_jingle(uint32_t n)
     }
     dsp.jingle_sample_pos += n;
     if (dsp.jingle_step >= 5u && !pending_rel) {
-        dsp.jingle_active = 0u;
+        if (dsp.jingle_tail_rem > n) {
+            dsp.jingle_tail_rem -= n;
+        } else {
+            dsp.jingle_tail_rem = 0u;
+            dsp.jingle_active = 0u;
+        }
     }
 }
 

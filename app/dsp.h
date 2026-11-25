@@ -106,6 +106,7 @@ void sf_dsp_set_pitch_bend(int16_t bend_q14);
 void sf_dsp_set_mod_wheel(uint8_t val);
 void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel);
 void sf_dsp_start_jingle(uint8_t jingle_idx, const sf_preset_t *jingle_patch);
+void sf_dsp_start_easter_egg(void);
 void sf_dsp_stop_jingle(void);
 void sf_dsp_click(uint8_t accent);
 void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12);

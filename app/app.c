@@ -1569,8 +1569,10 @@ static struct {
     int32_t last_prs;
     int32_t last_turns5;
     uint8_t k3_turns;
-    uint8_t cosmic_active;
-    uint32_t cosmic_off_at;
+    uint32_t about_until;
+    uint32_t last_oct_ms;
+    uint8_t last_oct_btn;
+    int8_t last_oct_prev;
     uint8_t held_chord_cnt[NKEYS];
     uint8_t held_notes[NKEYS][4];
 } ui;
@@ -1669,8 +1671,6 @@ static void show_hud_drumkit(uint32_t now)
     ui.redraw = 1u;
 }
 
-static const uint8_t COSMIC_NOTES[4] = {60u, 64u, 67u, 74u};
-
 static void release_all_keys(void)
 {
     uint32_t k, i;
@@ -1683,15 +1683,22 @@ static void release_all_keys(void)
         ui.held_chord_cnt[k] = 0u;
         arp_held[k] = 0u;
     }
-    if (ui.cosmic_active) {
-        for (i = 0u; i < 4u; i++) sf_dsp_note_off(COSMIC_NOTES[i]);
-        ui.cosmic_active = 0u;
-    }
     if (arp_cur_note >= 0) {
         sf_dsp_note_off((uint8_t)arp_cur_note);
         arp_cur_note = -1;
     }
     sf_dsp_all_notes_off();
+}
+
+static void trigger_about_easter_egg(uint32_t now)
+{
+    release_all_keys();
+    sf_dsp_start_easter_egg();
+    ui.about_until = now + 6500u;
+    ui.hud_until = 0u;
+    ui.star_spin_targ += FM_TWO_PI * 2.0f;
+    ui.star_happy_until = now + 1800u;
+    ui.redraw = 1u;
 }
 
 static void handle_octave_delta(uint32_t now, int32_t d)
@@ -2320,11 +2327,17 @@ static void input(uint32_t now)
     kdown = keys & ~ui.prev_keys;
     kup = ~keys & ui.prev_keys;
 
-    /* Any button, key, or encoder cancels boot splash cleanly */
+    /* Any button, key, or encoder cancels boot splash or About App screen cleanly */
     if (now < ui.boot_until && (down || kdown)) {
         ui.boot_until = now;
         sf_dsp_stop_jingle();
         ui.redraw = 1u;
+    }
+    if (now < ui.about_until && (down || kdown)) {
+        ui.about_until = 0u;
+        sf_dsp_stop_jingle();
+        ui.redraw = 1u;
+        if (!kdown) { ui.prev_btn = b; ui.prev_keys = keys; return; }
     }
 
     if (down || kdown) { ui.last_menu_ms = now; ui.last_activity_ms = now; }
@@ -2332,6 +2345,7 @@ static void input(uint32_t now)
     /* 1. Encoders */
     if ((d = plat_enc(EN_SELECT)) != 0) {
         if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); }
+        if (now < ui.about_until) { ui.about_until = 0u; sf_dsp_stop_jingle(); }
         ui.last_menu_ms = now; ui.last_activity_ms = now;
         if (ui.conf_type == CONF_SAVE || ui.conf_type == CONF_RAND_LEAVE) {
             ui.conf_bx_slot = (uint8_t)(((int32_t)ui.conf_bx_slot + d + (int32_t)SF_BANK_X_SLOTS * 4) % (int32_t)SF_BANK_X_SLOTS);
@@ -2362,6 +2376,7 @@ static void input(uint32_t now)
 
     if ((d = plat_enc(EN_PRESET)) != 0) {
         if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); }
+        if (now < ui.about_until) { ui.about_until = 0u; sf_dsp_stop_jingle(); }
         ui.last_menu_ms = now; ui.last_activity_ms = now;
         if (ui.conf_type == CONF_SAVE || ui.conf_type == CONF_RAND_LEAVE) {
             ui.conf_bx_slot = (uint8_t)(((int32_t)ui.conf_bx_slot + d + (int32_t)SF_BANK_X_SLOTS * 4) % (int32_t)SF_BANK_X_SLOTS);
@@ -2392,6 +2407,7 @@ static void input(uint32_t now)
 
     if ((d = plat_enc(EN_ALGO)) != 0) {
         if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); }
+        if (now < ui.about_until) { ui.about_until = 0u; sf_dsp_stop_jingle(); }
         ui.last_menu_ms = now; ui.last_activity_ms = now;
         if (ui.page == PAGE_SEQ) {
             set.drum_bus = (uint8_t)(((int32_t)set.drum_bus + d + (int32_t)SF_NBUS * 2) % (int32_t)SF_NBUS);
@@ -2410,10 +2426,10 @@ static void input(uint32_t now)
         }
     }
 
-    if ((d = plat_enc(EN_K1)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 0u, d); }
-    if ((d = plat_enc(EN_K2)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 1u, d); }
-    if ((d = plat_enc(EN_K3)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 2u, d); }
-    if ((d = plat_enc(EN_K4)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 3u, d); }
+    if ((d = plat_enc(EN_K1)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } if (now < ui.about_until) { ui.about_until = 0u; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 0u, d); }
+    if ((d = plat_enc(EN_K2)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } if (now < ui.about_until) { ui.about_until = 0u; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 1u, d); }
+    if ((d = plat_enc(EN_K3)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } if (now < ui.about_until) { ui.about_until = 0u; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 2u, d); }
+    if ((d = plat_enc(EN_K4)) != 0) { if (now < ui.boot_until) { ui.boot_until = now; sf_dsp_stop_jingle(); } if (now < ui.about_until) { ui.about_until = 0u; sf_dsp_stop_jingle(); } ui.last_menu_ms = now; ui.last_activity_ms = now; handle_knob(now, 3u, d); }
 
     /* 2. Buttons while modal confirmation is active */
     if (ui.conf_type != CONF_NONE) {
@@ -2487,17 +2503,22 @@ static void input(uint32_t now)
         down &= ~((1u << B_GLO) | (1u << B_ARP));
     }
     if ((((b >> B_OCTDN) & 1u) && ((down >> B_OCTUP) & 1u)) || (((b >> B_OCTUP) & 1u) && ((down >> B_OCTDN) & 1u))) {
-        uint32_t ci;
-        if (ui.cosmic_active) {
-            for (ci = 0; ci < 4u; ci++) sf_dsp_note_off(COSMIC_NOTES[ci]);
+        if (ui.last_oct_btn != 0u && (now - ui.last_oct_ms) <= 260u) {
+            set.octave = ui.last_oct_prev;
         }
-        for (ci = 0; ci < 4u; ci++) sf_dsp_note_on(COSMIC_NOTES[ci], 108u);
-        ui.cosmic_active = 1u;
-        ui.cosmic_off_at = now + 650u;
-        ui.star_spin_targ += FM_TWO_PI * 2.0f;
-        ui.star_happy_until = now + 900u;
-        show_hud_badge(now, "COSMIC STAR CHORD!", "C MAJ9 SPARKLE", COL_CYAN, 1100u);
+        ui.last_oct_btn = 0u;
+        trigger_about_easter_egg(now);
         down &= ~((1u << B_OCTDN) | (1u << B_OCTUP));
+    } else if (((down >> B_OCTDN) & 1u) && ui.last_oct_btn == 2u && (now - ui.last_oct_ms) <= 260u) {
+        set.octave = ui.last_oct_prev;
+        ui.last_oct_btn = 0u;
+        trigger_about_easter_egg(now);
+        down &= ~(1u << B_OCTDN);
+    } else if (((down >> B_OCTUP) & 1u) && ui.last_oct_btn == 1u && (now - ui.last_oct_ms) <= 260u) {
+        set.octave = ui.last_oct_prev;
+        ui.last_oct_btn = 0u;
+        trigger_about_easter_egg(now);
+        down &= ~(1u << B_OCTUP);
     }
 
     if ((down >> B_FX) & 1u) cycle_page_btn(now, PAGE_FX, ui.page == PAGE_FX && ui.sub[PAGE_FX] == 0u ? "DLY & SAT (2/2)" : "FX RACK (1/2)", "", COL_CYAN);
@@ -2593,8 +2614,18 @@ static void input(uint32_t now)
         if (was_playing) stop_loop_playback();
         ui.redraw = 1u;
     }
-    if ((down >> B_OCTDN) & 1u) handle_octave_delta(now, -1);
-    if ((down >> B_OCTUP) & 1u) handle_octave_delta(now, 1);
+    if ((down >> B_OCTDN) & 1u) {
+        ui.last_oct_prev = set.octave;
+        ui.last_oct_ms = now;
+        ui.last_oct_btn = 1u;
+        handle_octave_delta(now, -1);
+    }
+    if ((down >> B_OCTUP) & 1u) {
+        ui.last_oct_prev = set.octave;
+        ui.last_oct_ms = now;
+        ui.last_oct_btn = 2u;
+        handle_octave_delta(now, 1);
+    }
 
     /* ARP button: short press cycles 1/2 -> 2/2 -> Home; hold 420ms toggles ARP+LATCH ON <-> ARP+LATCH OFF */
     if ((down >> B_ARP) & 1u) {
@@ -3443,7 +3474,14 @@ static void draw_boot_splash(uint32_t now)
         }
     }
 
-    /* 3. Boot Footer Plate (y: 186..240) */
+    /* 3. Top "STARFISH" Boot Banner & Footer Plate (y: 186..240) */
+    fill_round_rect(64, 5, 112, 20, 6, RGB(9, 13, 22));
+    draw_rect_outline(64, 5, 112, 20, 1, COL_CYAN_DIM);
+    {
+        int32_t bw = text_w(&FONT_S, "STARFISH");
+        cv_text((240 - bw) / 2, 9, &FONT_S, "STARFISH", COL_TEXT_HI);
+    }
+
     cv_rect(0, 186, 240, 54, RGB(9, 13, 22));
     cv_rect(0, 186, 240, 1, COL_CYAN_DIM);
 
@@ -3712,6 +3750,28 @@ static void draw_confirm_screen(uint32_t now, float rms)
     cv_rect(16, 196, 208, 28, COL_RED_DIM);
     draw_rect_outline(16, 196, 208, 28, 1, COL_RED);
     draw_centered(203, &FONT_S, ui.conf_type == CONF_RAND_LEAVE ? "OCT- : CANCEL STAY" : "OCT- : CANCEL", COL_RED_TXT);
+}
+
+static void draw_about_screen(uint32_t now, float rms)
+{
+    cv_rect(0, 0, 240, 240, RGB(9, 13, 22));
+    cv_rect(0, 0, 240, 34, COL_TOPBAR);
+    cv_text(10, 10, &FONT_S, "ABOUT APP", COL_CYAN);
+    cv_rect(0, 34, 240, 1, COL_CYAN_DIM);
+    draw_mini_starfish(now, rms);
+
+    draw_centered(48, &FONT_M, "STARFISH", COL_TEXT_HI);
+    draw_centered(81, &FONT_XS, "FM-1 SYNTH & GROOVEBOX", COL_CYAN);
+
+    cv_rect(12, 106, 216, 78, RGB(16, 22, 36));
+    draw_rect_outline(12, 106, 216, 78, 1, COL_HAIRLINE);
+    draw_centered(116, &FONT_XS, "8-VOICE VA | DUAL FILTERS", COL_TEXT_HI);
+    draw_centered(133, &FONT_XS, "4-ICON FX RACK | 10 DRUM KITS", COL_LABEL);
+    draw_centered(150, &FONT_XS, "288 ROM PRESETS | 128 BANK X", COL_LABEL);
+    draw_centered(167, &FONT_XS, "FOR M-VAVE FM-1 | MPL-2.0", COL_GREEN);
+
+    draw_centered(195, &FONT_XS, "CHORUSY C MAJ9 SHIMMER", COL_PURPLE);
+    draw_centered(216, &FONT_XS, "PRESS ANY KEY OR BUTTON", COL_MUTED);
 }
 
 static void draw_hud_overlay(uint32_t now, float rms)
@@ -4062,6 +4122,36 @@ static void eval_dual_filter_pt(float x_norm, float c1_norm, float c2_norm,
     *out_comb = comb;
 }
 
+static void stroke_arc(int32_t cx, int32_t cy, float r, float a0, float a1, int32_t steps, uint16_t c)
+{
+    int32_t i, px = cx, py = cy;
+    for (i = 0; i <= steps; i++) {
+        float t = (float)i / (float)steps;
+        float ang = a0 + (a1 - a0) * t;
+        int32_t x = cx + (int32_t)(fm_cosf(ang) * r + (fm_cosf(ang) >= 0.0f ? 0.5f : -0.5f));
+        int32_t y = cy + (int32_t)(fm_sinf(ang) * r + (fm_sinf(ang) >= 0.0f ? 0.5f : -0.5f));
+        if (i > 0) cv_line(px, py, x, y, c);
+        px = x;
+        py = y;
+    }
+}
+
+static void stroke_quad(float x0, float y0, float cx, float cy, float x1, float y1, int32_t steps, uint16_t c)
+{
+    int32_t i, px = (int32_t)x0, py = (int32_t)y0;
+    for (i = 0; i <= steps; i++) {
+        float t = (float)i / (float)steps;
+        float u = 1.0f - t;
+        float fx = u * u * x0 + 2.0f * u * t * cx + t * t * x1;
+        float fy = u * u * y0 + 2.0f * u * t * cy + t * t * y1;
+        int32_t x = (int32_t)(fx + 0.5f);
+        int32_t y = (int32_t)(fy + 0.5f);
+        if (i > 0) cv_line(px, py, x, y, c);
+        px = x;
+        py = y;
+    }
+}
+
 static void draw_center_stage(uint32_t now, float rms)
 {
     uint8_t p = ui.page;
@@ -4147,110 +4237,157 @@ static void draw_center_stage(uint32_t now, float rms)
             prev_y = y;
         }
     } else if (p == PAGE_FX) {
-        /* Stereo L/R Ping-Pong Delay Timeline + Diffusing Reverb Cloud + Compact FX Strip */
+        /* 4 Horizontal Animated FX Icon Boxes inspired by vinish.dev/free-vfx sprites */
+        static const char *const LBL_1[4] = {"CHO", "PHS", "DLY", "REV"};
+        static const char *const LBL_2[4] = {"DMX", "DFB", "PHZ", "SAT"};
+        static const char *const SAT_SHORT[4] = {"SFT", "TUB", "HRD", "OFF"};
         float t = (float)now * 0.001f;
-        float del_sec = 0.30f;
-        char hdr[28], rlbl[16], nb[8];
-        if (pr->fx_del_time >= 101u && pr->fx_del_time <= 106u) {
-            static const float SMULT[6] = {0.25f, 0.333333f, 0.50f, 0.75f, 1.00f, 1.50f};
-            uint8_t sidx = (uint8_t)(pr->fx_del_time - 101u);
-            float safe_bpm = fm_clampf((float)set.bpm, 40.0f, 240.0f);
-            del_sec = fm_clampf((60.0f / safe_bpm) * SMULT[sidx], 0.04f, 0.74f);
-            text_copy(hdr, DLY_SYNC_NAMES[sidx], sizeof(hdr));
-        } else {
-            del_sec = fm_clampf((float)pr->fx_del_time * 0.01f, 0.04f, 0.74f);
-            text_copy(hdr, "DLY ", sizeof(hdr));
-            int_text((int32_t)(del_sec * 1000.0f), nb);
-            text_cat(hdr, nb);
-            text_cat(hdr, "ms");
-        }
-        cv_text(12, 87, &FONT_XS, hdr, COL_AMBER);
-        text_copy(rlbl, "REV ", sizeof(rlbl));
-        int_text(pr->fx_reverb, nb); text_cat(rlbl, nb); text_cat(rlbl, "%");
-        cv_text(228 - text_w(&FONT_XS, rlbl), 87, &FONT_XS, rlbl, COL_ORANGE);
+        uint8_t sat = sf_sat_mode(pr) & 3u;
+        float ph_hz_vis = fm_clampf((float)pr->fx_phaser_rate * 0.1f, 0.25f, 1.35f);
+        float del_sec = (pr->fx_del_time >= 101u && pr->fx_del_time <= 106u)
+            ? fm_clampf((60.0f / fm_clampf((float)set.bpm, 40.0f, 240.0f)) *
+                (pr->fx_del_time == 101u ? 0.25f : pr->fx_del_time == 102u ? 0.333f :
+                 pr->fx_del_time == 103u ? 0.5f : pr->fx_del_time == 104u ? 0.75f :
+                 pr->fx_del_time == 105u ? 1.0f : 1.5f), 0.12f, 0.75f)
+            : fm_clampf((float)pr->fx_del_time * 0.01f, 0.12f, 0.85f);
 
-        /* Left box (12..152, 100..136): Stereo L/R Ping-Pong Delay Taps synced to BPM */
-        cv_rect(12, 100, 140, 36, RGB(10, 15, 26));
-        draw_rect_outline(12, 100, 140, 36, 1, COL_HAIRLINE);
-        cv_rect(14, 118, 136, 1, COL_SLATE_D);
-        cv_text(15, 102, &FONT_T, "L", COL_CYAN);
-        cv_text(15, 123, &FONT_T, "R", COL_AMBER);
-        {
-            float dmx = (float)pr->fx_del_mix * 0.01f;
-            float dfb = fm_clampf((float)pr->fx_del_fb * 0.01f, 0.12f, 0.92f);
-            float live_d = (float)vis.del_lvl_pct * 0.01f;
-            float tap_cyc = t / del_sec;
-            int32_t active_tap = (int32_t)tap_cyc % 6;
-            int32_t step_px = clamp(12 + (int32_t)(del_sec * 16.0f), 14, 21);
-            float amp = 1.0f;
-            for (i = 0; i < 6; i++) {
-                int32_t tx = 28 + i * step_px;
-                if (tx > 146) break;
-                float h_f = (3.0f + 12.0f * (0.35f + 0.65f * dmx) * amp) * (1.0f + live_d * 0.25f);
-                int32_t th = clamp((int32_t)h_f, 2, 15);
-                uint8_t is_l = ((i & 1) == 0) ? 1u : 0u;
-                uint8_t lit = (i == active_tap && (pr->fx_del_mix > 2u || live_d > 0.03f)) ? 1u : 0u;
-                uint16_t tc = is_l ? (lit ? C_WHITE : COL_CYAN) : (lit ? C_WHITE : COL_AMBER);
-                if (is_l) {
-                    cv_rect(tx, 117 - th, 4, th, tc);
-                    if (lit) fill_circle(tx + 2, 117 - th, 2, COL_CYAN);
-                } else {
-                    cv_rect(tx, 119, 4, th, tc);
-                    if (lit) fill_circle(tx + 2, 119 + th, 2, COL_AMBER);
+        for (i = 0; i < 4; i++) {
+            int32_t bx = 11 + i * 56;
+            int32_t by = 88;
+            int32_t bw = 50;
+            int32_t cx = bx + 25;
+            int32_t cy = by + 20;
+            uint16_t col = (i == 0) ? COL_CYAN : (i == 1) ? (sub ? COL_AMBER : COL_GREEN)
+                         : (i == 2) ? (sub ? COL_GREEN : COL_AMBER) : COL_ORANGE;
+            float norm = 0.0f;
+            const char *lbl = sub ? LBL_2[i] : LBL_1[i];
+            const char *sub_txt = NULL;
+
+            if (sub == 0u) {
+                if (i == 0) norm = (float)pr->fx_chorus * 0.01f;
+                else if (i == 1) norm = (float)pr->fx_phaser * 0.01f;
+                else if (i == 2) norm = (pr->fx_del_time > 100u) ? 0.85f : fm_clampf((float)pr->fx_del_time * 0.008f, 0.0f, 0.8f);
+                else norm = (float)pr->fx_reverb * 0.01f;
+            } else {
+                if (i == 0) norm = (float)pr->fx_del_mix * 0.01f;
+                else if (i == 1) norm = (float)pr->fx_del_fb * (1.0f / 95.0f);
+                else if (i == 2) norm = (float)pr->fx_phaser_rate * (1.0f / 60.0f);
+                else {
+                    norm = (sat == SF_SAT_OFF) ? 0.0f : (sat == SF_SAT_SOFT) ? 0.35f : (sat == SF_SAT_TUBE) ? 0.70f : 1.0f;
+                    sub_txt = SAT_SHORT[sat];
                 }
-                amp *= dfb;
             }
-        }
 
-        /* Right box (158..228, 100..136): Diffusing Stereo Reverb Cloud */
-        cv_rect(158, 100, 70, 36, RGB(12, 14, 28));
-        draw_rect_outline(158, 100, 70, 36, 1, COL_SLATE_D);
-        {
-            float rv = (float)pr->fx_reverb * 0.01f;
-            float live_r = (float)vis.rev_lvl_pct * 0.01f;
-            float cloud_e = fm_clampf(rv * 0.72f + live_r * 0.45f, 0.12f, 1.0f);
-            int32_t rcx = 193, rcy = 118;
-            for (i = 0; i < 3; i++) {
-                float ph = t * (0.9f + rv * 0.8f) + (float)i * 0.333f;
-                float fr = ph - fm_floorf(ph);
-                int32_t rr = 3 + (int32_t)(fr * (10.0f + cloud_e * 12.0f));
-                uint16_t rc = (i == 0) ? COL_PURPLE : (i == 1 ? COL_CYAN_DIM : COL_AMB_DIM);
-                if (live_r > 0.12f && i == 0) rc = COL_ORANGE;
-                if (rr <= 16) stroke_circle(rcx, rcy, rr, 1, rc);
-            }
-            for (i = 0; i < 8; i++) {
-                float ang = t * (0.8f + 0.15f * (float)(i & 3)) + (float)i * (FM_TWO_PI * 0.125f);
-                float rad = (5.0f + (float)(i & 3) * 3.8f) * (0.45f + cloud_e * 0.65f);
-                int32_t px = clamp(rcx + (int32_t)(fm_cosf(ang) * rad * 1.45f), 161, 224);
-                int32_t py = clamp(rcy + (int32_t)(fm_sinf(ang) * rad * 0.75f), 103, 132);
-                uint16_t dc = (i & 1) ? COL_CYAN : (live_r > 0.10f ? COL_AMBER : COL_PURPLE);
-                cv_rect(px, py, 2, 2, dc);
-            }
-            fill_circle(rcx, rcy, 2 + (int32_t)(cloud_e * 2.5f), live_r > 0.12f ? C_WHITE : COL_ORANGE);
-        }
+            uint8_t active = (norm > 0.02f) ? 1u : 0u;
+            uint16_t ink = active ? col : COL_DIM;
+            uint16_t dim_ink = active ? blend565(COL_CELL, col, 90u) : COL_SLATE_D;
 
-        /* Bottom compact strip (y: 141..156): Chorus, Phaser LFO sweep & Saturation / FB meters */
-        if (sub == 1u) {
-            float ph_hz = fm_clampf((float)pr->fx_phaser_rate * 0.1f, 0.1f, 6.0f);
-            float ph_x = 0.5f + 0.5f * fm_sin_turns(t * ph_hz);
-            uint8_t sat = sf_sat_mode(pr);
-            cv_text(12, 143, &FONT_XS, "FB", COL_LIGHT);
-            cv_rect(30, 145, 58, 7, COL_CELL);
-            cv_rect(30, 145, (58 * clamp((int32_t)pr->fx_del_fb, 0, 95)) / 95, 7, COL_AMBER);
-            cv_text(96, 143, &FONT_XS, "PHS", COL_GREEN);
-            cv_rect(122, 145, 52, 7, COL_CELL);
-            cv_rect(122 + (int32_t)(ph_x * 46.0f), 144, 6, 9, COL_GREEN);
-            cv_text(228 - text_w(&FONT_XS, SAT_NAMES[sat]), 143, &FONT_XS, SAT_NAMES[sat], COL_ORANGE);
-        } else {
-            float ph_hz = fm_clampf((float)pr->fx_phaser_rate * 0.1f, 0.1f, 6.0f);
-            float ph_x = 0.5f + 0.5f * fm_sin_turns(t * ph_hz);
-            cv_text(12, 143, &FONT_XS, "CHO", COL_CYAN);
-            cv_rect(40, 145, 68, 7, COL_CELL);
-            cv_rect(40, 145, (68 * clamp((int32_t)pr->fx_chorus, 0, 100)) / 100, 7, COL_CYAN);
-            cv_text(118, 143, &FONT_XS, "PHS", COL_GREEN);
-            cv_rect(146, 145, 82, 7, COL_CELL);
-            cv_rect(146, 145, (82 * clamp((int32_t)pr->fx_phaser, 0, 100)) / 100, 7, COL_GRN_DIM);
-            cv_rect(146 + (int32_t)(ph_x * 76.0f), 144, 6, 9, COL_GREEN);
+            cv_rect(bx, by, bw, 66, RGB(12, 17, 29));
+            draw_rect_outline(bx, by, bw, 66, 1, active ? blend565(COL_HAIRLINE, col, 75u) : COL_HAIRLINE);
+
+            if (sub == 0u) {
+                if (i == 0) {
+                    /* CHO: Dual water-ripple wave arcs */
+                    float drift = active ? fm_sinf(t * 1.4f) * (1.2f + norm * 1.8f) : 0.0f;
+                    stroke_arc(cx, cy + 5, 11.0f, FM_PI * 1.18f, FM_PI * 1.82f, 10, dim_ink);
+                    stroke_arc(cx + (int32_t)drift, cy + 1, 8.0f, FM_PI * 1.15f, FM_PI * 1.85f, 9, ink);
+                    stroke_arc(cx - (int32_t)(drift * 0.7f), cy - 3, 4.5f, FM_PI * 1.12f, FM_PI * 1.88f, 7, ink);
+                    if (active) {
+                        cv_pset(cx - 5, cy - 9, C_WHITE);
+                        cv_pset(cx + 4, cy - 7, C_WHITE);
+                    }
+                } else if (i == 1) {
+                    /* PHS: Force-field energy filament with gliding electric node */
+                    float nx = active ? fm_sinf(t * ph_hz_vis * 1.8f) * (2.5f + norm * 5.0f) : 0.0f;
+                    stroke_quad((float)(cx - 12), (float)(cy - 1), (float)cx + nx * 0.5f, (float)(cy - 8), (float)(cx + 12), (float)(cy - 1), 10, dim_ink);
+                    stroke_quad((float)(cx - 12), (float)(cy - 1), (float)cx - nx * 0.5f, (float)(cy + 6), (float)(cx + 12), (float)(cy - 1), 10, ink);
+                    fill_circle(cx + (int32_t)nx, cy - 1, 2, active ? C_WHITE : COL_DIM);
+                } else if (i == 2) {
+                    /* DLY: Staggered comet echo trail diamonds */
+                    float ping = (pr->fx_del_mix > 2u || norm > 0.05f) ? (0.5f + 0.5f * fm_cosf((t / del_sec) * FM_PI)) : 0.0f;
+                    int32_t k;
+                    for (k = 0; k < 3; k++) {
+                        int32_t ox = (k - 1) * 8;
+                        int32_t dr = (k == 0) ? 5 : (k == 1) ? 4 : 3;
+                        uint16_t dc = (k == 0) ? ink : (k == 1) ? (ping > 0.65f ? C_WHITE : ink) : (ping > 0.45f ? ink : dim_ink);
+                        cv_line(cx + ox, cy - 1 - dr, cx + ox + dr, cy - 1, dc);
+                        cv_line(cx + ox + dr, cy - 1, cx + ox, cy - 1 + dr, dc);
+                        cv_line(cx + ox, cy - 1 + dr, cx + ox - dr, cy - 1, dc);
+                        cv_line(cx + ox - dr, cy - 1, cx + ox, cy - 1 - dr, dc);
+                    }
+                } else {
+                    /* REV: Magic aura orb + calm rising ember wisps */
+                    int32_t b = active ? (int32_t)(0.5f + 0.5f * fm_sinf(t * 1.1f)) : 0;
+                    stroke_circle(cx, cy, 9 + b, 1, dim_ink);
+                    stroke_circle(cx, cy, 5, 1, ink);
+                    if (active) {
+                        int32_t rise = ((int32_t)(t * 5.0f)) & 7;
+                        cv_pset(cx - 5, cy - 3 - (rise * 3) / 5, COL_AMBER);
+                        cv_pset(cx + 4, cy - 1 - (((rise + 4) & 7) * 3) / 5, COL_CYAN);
+                        cv_rect(cx - 1, cy - 1, 2, 2, C_WHITE);
+                    }
+                }
+            } else {
+                if (i == 0) {
+                    /* DMX: Twin energy beam splitter */
+                    int32_t wet_len = 4 + (int32_t)(norm * 16.0f);
+                    int32_t px = (active && wet_len > 3) ? (((int32_t)(t * 16.0f)) % wet_len) : 0;
+                    cv_line(cx - 11, cy - 5, cx + 5, cy - 5, COL_SLATE_D);
+                    cv_rect(cx - 11, cy + 1, 22, 3, dim_ink);
+                    cv_rect(cx - 11, cy + 1, wet_len, 3, ink);
+                    if (active) cv_rect(cx - 11 + px, cy, 2, 4, C_WHITE);
+                } else if (i == 1) {
+                    /* DFB: Spiral portal vortex arcs with orbiting spark motes */
+                    int32_t pips = active ? (1 + (int32_t)(norm * 2.0f)) : 0;
+                    int32_t k;
+                    stroke_arc(cx, cy - 1, 9.0f, 0.3f, FM_PI + 0.1f, 10, dim_ink);
+                    stroke_arc(cx, cy - 1, 9.0f, FM_PI + 0.3f, FM_TWO_PI + 0.1f, 10, ink);
+                    stroke_arc(cx, cy - 1, 4.5f, 0.8f, FM_PI * 1.9f, 8, ink);
+                    for (k = 0; k < pips; k++) {
+                        float ang = t * 1.7f - (float)k * 1.2f;
+                        int32_t px = cx + (int32_t)(fm_cosf(ang) * 9.0f);
+                        int32_t py = (cy - 1) + (int32_t)(fm_sinf(ang) * 9.0f);
+                        fill_circle(px, py, k == 0 ? 2 : 1, k == 0 ? C_WHITE : ink);
+                    }
+                } else if (i == 2) {
+                    /* PHZ: Lightning crest sweep along baseline */
+                    int32_t sx = active ? (int32_t)(fm_sinf(t * ph_hz_vis * 1.9f) * 7.0f) : 0;
+                    cv_line(cx - 12, cy + 4, cx + 12, cy + 4, dim_ink);
+                    cv_line(cx + sx - 5, cy + 4, cx + sx - 1, cy - 3, ink);
+                    cv_line(cx + sx - 1, cy - 3, cx + sx + 2, cy - 1, ink);
+                    cv_line(cx + sx + 2, cy - 1, cx + sx + 5, cy - 8, ink);
+                    cv_rect(cx + sx + 4, cy - 9, 2, 2, active ? C_WHITE : COL_DIM);
+                } else {
+                    /* SAT: Stylized flame / ember core (OFF dot, SOFT flame, TUBE core, HARD flare) */
+                    float sway = (sat != SF_SAT_OFF && active) ? fm_sinf(t * 2.6f) * 0.9f : 0.0f;
+                    if (sat == SF_SAT_OFF) {
+                        stroke_circle(cx, cy, 5, 1, COL_SLATE_D);
+                        cv_rect(cx - 1, cy - 1, 2, 2, COL_DIM);
+                    } else {
+                        float h = (sat == SF_SAT_SOFT) ? 11.0f : (sat == SF_SAT_TUBE) ? 14.0f : 16.0f;
+                        stroke_quad((float)cx, (float)(cy + 8), (float)(cx - 8), (float)(cy + 4), (float)cx + sway, (float)(cy + 8) - h, 8, ink);
+                        stroke_quad((float)cx, (float)(cy + 8), (float)(cx + 8), (float)(cy + 4), (float)cx + sway, (float)(cy + 8) - h, 8, ink);
+                        if (sat == SF_SAT_TUBE || sat == SF_SAT_HARD) {
+                            fill_circle(cx + (int32_t)(sway * 0.5f), cy + 3, 2, C_WHITE);
+                        }
+                        if (sat == SF_SAT_HARD) {
+                            cv_pset(cx - 6, cy - 2, COL_AMBER);
+                            cv_pset(cx + 6, cy - 4, C_WHITE);
+                        }
+                    }
+                }
+            }
+
+            {
+                const char *txt = sub_txt ? sub_txt : lbl;
+                int32_t tw = text_w(&FONT_T, txt);
+                cv_text(cx - tw / 2, by + 40, &FONT_T, txt, active ? COL_TEXT_HI : COL_MUTED);
+            }
+            cv_rect(bx + 6, by + 56, bw - 12, 4, COL_CELL);
+            {
+                int32_t fw = (int32_t)((float)(bw - 12) * fm_clampf(norm, 0.0f, 1.0f) + 0.5f);
+                if (fw > 0) cv_rect(bx + 6, by + 56, fw, 4, ink);
+            }
         }
     } else if (p == PAGE_SEL) {
         char p1[16], p2[16];
@@ -4773,6 +4910,8 @@ static void render_strip(uint32_t now, float rms, int32_t y_offset)
 
     if (now < ui.boot_until) {
         draw_boot_splash(now);
+    } else if (now < ui.about_until) {
+        draw_about_screen(now, rms);
     } else if (ui.conf_type != CONF_NONE) {
         draw_confirm_screen(now, rms);
     } else if ((ui.hud_kind == HUD_BANK || ui.hud_kind == HUD_PRESET || ui.hud_kind == HUD_DRUMKIT) && now < ui.hud_until) {
@@ -4937,11 +5076,6 @@ void app_frame(void)
         int ev;
         while ((ev = btdev_event()) != BTDEV_NONE)
             show_hud_badge(now, btdev_word(ev), btdev_name(), COL_CYAN, 1100u);
-    }
-    if (ui.cosmic_active && (int32_t)(now - ui.cosmic_off_at) >= 0) {
-        uint32_t ci;
-        for (ci = 0u; ci < 4u; ci++) sf_dsp_note_off(COSMIC_NOTES[ci]);
-        ui.cosmic_active = 0u;
     }
     input(now);
     if (drum_store_dirty && !backup_hold && !seq_playing && !rec_armed &&
