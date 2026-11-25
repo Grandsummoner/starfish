@@ -1,5 +1,7 @@
 # STARFISH for M-VAVE FM-1
 
+![STARFISH Project Preview](docs/img/starfish-overview.png)
+
 **An 8-Voice Virtual Analog & Hypersaw Synthesizer · Dual Multimode Filters · 4-Icon FX Rack · 10-Kit Drum Sequencer · 288 Curated Presets + 128 User Flash Slots**
 
 STARFISH transforms the **M-VAVE FM-1** into a portable synthesizer and groovebox, featuring an expanded sound engine, expressive effects, extensive preset management and an integrated drum sequencer.
@@ -17,12 +19,6 @@ STARFISH transforms the **M-VAVE FM-1** into a portable synthesizer and groovebo
 | 🎨 **[Promo & EDM Showcase](https://grandsummoner.github.io/starfish/edm.html)** | Explore promotional screenshots, generate PNG posters and widescreen banners, and create announcement materials. |
 
 All three applications share a common navigation bar for easy switching between the installer, guide and promotional showcase.
-
-### Project Preview
-
-![STARFISH Project Preview](docs/img/starfish-overview.png)
-
-[🖼️ View Full-Size STARFISH Preview](docs/img/starfish-overview.png)
 
 ---
 
