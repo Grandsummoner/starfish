@@ -4261,7 +4261,7 @@ static void draw_center_stage(uint32_t now, float rms)
                          : (i == 2) ? (sub ? COL_GREEN : COL_AMBER) : COL_ORANGE;
             float norm = 0.0f;
             const char *lbl = sub ? LBL_2[i] : LBL_1[i];
-            const char *sub_txt = NULL;
+            const char *sub_txt = 0;
 
             if (sub == 0u) {
                 if (i == 0) norm = (float)pr->fx_chorus * 0.01f;
