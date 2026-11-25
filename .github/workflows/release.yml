@@ -145,6 +145,7 @@ jobs:
 
           # MIDI keyboard input for the emulator (the page loads emu/app.js if it exists)
           cp emu-midi.js dist-pages/emu/app.js
+          cp emu-midi-worklet.js dist-pages/emu/app_worklet.js
 
           # Publish shared emulator fonts
           if [ -d app/build/fonts ]; then
