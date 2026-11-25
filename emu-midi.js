@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
-// MIDI keyboard input for the STARFISH web emulator.
+// MIDI keyboard input for the STARFISH web emulator (page side).
 // The emulator page loads an optional "./app.js" when you press Switch on, and calls attach({ node, ac, status }).
-// The workflow publishes this file as emu/app.js. Firmware and fm1-base are not touched.
-
-const LOW = 53;        // MIDI note that plays the FM-1's lowest key (F3 = 53). Change this to shift your keyboard's range.
-const KEYS = 27;       // the FM-1 has keys 0..26
-const MIN_HOLD = 50;   // ms: the firmware reads keys every 16 ms, so a quick tap must last a little
+// The workflow publishes this file as emu/app.js. Each MIDI message goes to the audio worklet (emu-midi-worklet.js,
+// published as emu/app_worklet.js), which hands it to the firmware's own MIDI input. Nothing in the firmware changes.
 
 export function attach({ node }) {
   // a button in the row with Mute
@@ -22,42 +19,21 @@ export function attach({ node }) {
     return;
   }
 
-  // The page sends the on-screen / computer-keyboard keys as one bit mask. Keep that mask, add the MIDI keys to it,
-  // so playing both at once works and neither cancels the other.
-  const raw = node.port.postMessage.bind(node.port);
-  let pageMask = 0, midiMask = 0;
-  node.port.postMessage = (m, transfer) => {
-    if (m && m.type === "keys") { pageMask = m.mask; m = { ...m, mask: (m.mask | midiMask) >>> 0 }; }
-    return raw(m, transfer);
-  };
-  const push = () => raw({ type: "keys", mask: (pageMask | midiMask) >>> 0 });
-
-  const downAt = new Map();
-  function noteOn(k) {
-    downAt.set(k, performance.now());
-    midiMask |= 1 << k;
-    push();
+  // a USB-MIDI packet: cable/code index, status, data 1, data 2 (the form plat_midi_in hands the firmware)
+  function send(status, d1, d2) {
+    const cmd = status & 0xf0;
+    if (cmd < 0x80 || cmd > 0xe0) return;                    // channel messages only (notes, bend, CC, pressure, program)
+    const pkt = ((status >> 4) | (status << 8) | (d1 << 16) | (d2 << 24)) >>> 0;
+    node.port.postMessage({ type: "app", midi: pkt });
   }
-  function noteOff(k) {
-    const at = downAt.get(k);
-    const go = () => {
-      if (downAt.get(k) !== at) return;        // pressed again meanwhile
-      midiMask &= ~(1 << k);
-      push();
-    };
-    const wait = MIN_HOLD - (performance.now() - (at ?? 0));
-    if (wait > 0) setTimeout(go, wait); else go();
-  }
-  function allOff() { midiMask = 0; downAt.clear(); push(); }
 
   function onMidi(e) {
-    const [s, n, v] = e.data;
-    const cmd = s & 0xf0;
-    if (cmd === 0xb0 && n === 123) { allOff(); return; }      // CC 123: all notes off
-    const k = n - LOW;
-    if (k < 0 || k >= KEYS) return;
-    if (cmd === 0x90 && v > 0) noteOn(k);
-    else if (cmd === 0x80 || (cmd === 0x90 && v === 0)) noteOff(k);
+    const d = e.data;
+    send(d[0], (d[1] || 0) & 127, (d[2] || 0) & 127);
+  }
+
+  function allNotesOff() {                                     // CC 123 on every channel, e.g. when a keyboard is unplugged
+    for (let ch = 0; ch < 16; ch++) send(0xb0 | ch, 123, 0);
   }
 
   let access = null;
@@ -73,7 +49,7 @@ export function attach({ node }) {
         access = await navigator.requestMIDIAccess({ sysex: false });
         access.onstatechange = (e) => {
           refresh();                                           // a keyboard plugged in or out later
-          if (e.port && e.port.state === "disconnected") allOff();
+          if (e.port && e.port.state === "disconnected") allNotesOff();
         };
       }
       refresh();
