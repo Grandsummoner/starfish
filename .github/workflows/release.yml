@@ -143,6 +143,9 @@ jobs:
           mkdir -p dist-pages/emu
           cp -r app/build/emu/. dist-pages/emu/
 
+          # MIDI keyboard input for the emulator (the page loads emu/app.js if it exists)
+          cp emu-midi.js dist-pages/emu/app.js
+
           # Publish shared emulator fonts
           if [ -d app/build/fonts ]; then
             mkdir -p dist-pages/fonts
