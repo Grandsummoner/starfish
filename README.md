@@ -1,16 +1,6 @@
 # STARFISH for M-VAVE FM-1
 **An 8-Voice Virtual Analog & Hypersaw Synthesizer · Dual Multimode Filters · 4-Icon FX Rack · 10-Kit Drum Sequencer · 288 Curated Presets + 128 User Flash Slots**
 
-<p align="center">
-  <img src="docs/img/starfish-overview.png" alt="STARFISH for M-VAVE FM-1" width="100%">
-</p>
-
-<p align="center">
-  <a href="docs/img/starfish-overview.png">View Full-Size STARFISH Preview</a>
-</p>
-
----
-
 ![STARFISH Project Preview](docs/img/starfish-overview.png)
 
 STARFISH transforms the **M-VAVE FM-1** into a portable synthesizer and groovebox, featuring an expanded sound engine, expressive effects, extensive preset management and an integrated drum sequencer.
