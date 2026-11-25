@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: MPL-2.0
 // MIDI keyboard input for the STARFISH web emulator.
-// The emulator page loads an optional "./app.js" and calls attach({ node, ac, status }).
+// The emulator page loads an optional "./app.js" when you press Switch on, and calls attach({ node, ac, status }).
 // The workflow publishes this file as emu/app.js. Firmware and fm1-base are not touched.
 
 const LOW = 53;        // MIDI note that plays the FM-1's lowest key (F3 = 53). Change this to shift your keyboard's range.
 const KEYS = 27;       // the FM-1 has keys 0..26
 const MIN_HOLD = 50;   // ms: the firmware reads keys every 16 ms, so a quick tap must last a little
 
-export function attach({ node, status }) {
+export function attach({ node }) {
+  // a button in the row with Mute
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "midi";
+  btn.textContent = "Connect MIDI keyboard";
+  const mute = document.getElementById("mute");
+  if (mute) mute.after(btn); else (document.querySelector(".bar") || document.body).append(btn);
+
   if (!navigator.requestMIDIAccess) {
-    status("MIDI keyboards need Chrome or Edge. This browser does not support Web MIDI.");
+    btn.disabled = true;
+    btn.textContent = "MIDI: needs Chrome or Edge";
     return;
   }
 
@@ -51,12 +60,25 @@ export function attach({ node, status }) {
     else if (cmd === 0x80 || (cmd === 0x90 && v === 0)) noteOff(k);
   }
 
-  navigator.requestMIDIAccess({ sysex: false }).then((access) => {
-    const hook = () => access.inputs.forEach((input) => { input.onmidimessage = onMidi; });
-    hook();
-    access.onstatechange = (e) => {
-      hook();                                                  // a keyboard plugged in later
-      if (e.port && e.port.state === "disconnected") allOff(); // and none left stuck if one is unplugged
-    };
-  }).catch(() => status("MIDI access was blocked. Allow MIDI for this page and reload to play a keyboard."));
+  let access = null;
+  function refresh() {
+    const names = [];
+    access.inputs.forEach((input) => { input.onmidimessage = onMidi; names.push(input.name); });
+    btn.textContent = names.length ? "MIDI: " + names.join(", ") : "MIDI: no keyboard found (click to look again)";
+  }
+
+  btn.addEventListener("click", async () => {
+    try {
+      if (!access) {
+        access = await navigator.requestMIDIAccess({ sysex: false });
+        access.onstatechange = (e) => {
+          refresh();                                           // a keyboard plugged in or out later
+          if (e.port && e.port.state === "disconnected") allOff();
+        };
+      }
+      refresh();
+    } catch {
+      btn.textContent = "MIDI blocked: allow it for this site, then click again";
+    }
+  });
 }
