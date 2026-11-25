@@ -6,13 +6,8 @@ usb_product = "STARFISH FM-1"
 o2 = ["dsp.c"]
 ram_layout = "packed"
 words = "words.tsv"
-
 ble = true
 ble_central = true
-
-# Browser emulator MIDI input
-emu = ["midi"]
-
 headphones = true
 backup = true
 usb_audio_in = true
@@ -20,7 +15,7 @@ usb_audio_out = true
 usb_audio_first = true
 usb_iad = true
 
-# Website and firmware hub metadata
+# Website and firmware hub metadata (docs/FIRMWARE-JSON.md)
 tagline = "8-voice VA synth, 10-kit drum machine, arp and dual LFOs for FM-1"
 repo = "https://github.com/starfish-fm1/starfish"
 licence = "MPL-2.0"
