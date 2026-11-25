@@ -20,10 +20,9 @@ All three applications share a common navigation bar for easy switching between 
 
 ### Project Preview
 
-<!-- Upload your PNG to docs/images/starfish-overview.png -->
-[![STARFISH Project Preview](docs/images/starfish-overview.png)](docs/img/starfish-overview.png)
+![STARFISH Project Preview](docs/img/starfish-overview.png)
 
-[View the full-size STARFISH PNG preview](docs/images/starfish-overview.png)
+[🖼️ View Full-Size STARFISH Preview](docs/img/starfish-overview.png)
 
 ---
 
