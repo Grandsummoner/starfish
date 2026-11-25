@@ -132,7 +132,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          cp index.html dist-pages/index.html
+          # Publish the installer and the user guide (both live at repo root)
+          cp index.html guide.html dist-pages/
 
           if [ -d app/web/words ]; then
             cp -r app/web/words dist-pages/words
