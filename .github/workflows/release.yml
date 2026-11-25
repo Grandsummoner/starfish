@@ -1,6 +1,4 @@
 # SPDX-License-Identifier: MPL-2.0
-# Builds STARFISH (.fwsc), runs host simulator tests,
-# publishes the single .fwsc file to GitHub Releases, and deploys the standalone Web MIDI installer.
 name: Build and Release
 
 on:
@@ -10,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: "Optional version (e.g. 1.0) for a versioned build"
+        description: "Optional version (e.g. 1.0)"
         required: false
         default: ""
 
@@ -23,8 +21,9 @@ concurrency:
 
 jobs:
   build:
-    name: Build Firmware
+    name: Build Firmware and Web Emulator
     runs-on: ubuntu-24.04
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,7 +40,7 @@ jobs:
           fi
           chmod +x build.sh tests/run_tests.sh base/tools/get_toolchain.sh
 
-      - name: Setup Python and Pillow (with raqm)
+      - name: Setup Python and Pillow
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -54,7 +53,7 @@ jobs:
           pip install --quiet pillow
           python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow requires libraqm/libfribidi0'"
 
-      - name: Cache JieLi toolchain & AC79 SDK
+      - name: Cache JieLi toolchain and AC79 SDK
         uses: actions/cache@v4
         with:
           path: |
@@ -62,7 +61,7 @@ jobs:
             ${{ runner.temp }}/ac79-sdk
           key: fm1-jieli-ac79-d179b448-v1
 
-      - name: Setup JieLi toolchain & AC79 SDK
+      - name: Setup JieLi toolchain and AC79 SDK
         run: |
           set -euo pipefail
           if [ ! -x "${RUNNER_TEMP}/jieli/toolchain/pi32v2/bin/clang" ]; then
@@ -72,7 +71,7 @@ jobs:
             rm -rf "${RUNNER_TEMP}/ac79-sdk"
             for attempt in 1 2 3; do
               if git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-                  https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "${RUNNER_TEMP}/ac79-sdk"; then
+                https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "${RUNNER_TEMP}/ac79-sdk"; then
                 break
               fi
               echo "AC79 SDK clone attempt ${attempt} failed, retrying..."
@@ -84,7 +83,7 @@ jobs:
           echo "JIELI_TOOLCHAIN=${RUNNER_TEMP}/jieli/toolchain" >> "$GITHUB_ENV"
           echo "AC79_SDK=${RUNNER_TEMP}/ac79-sdk" >> "$GITHUB_ENV"
 
-      - name: Build .fwsc package
+      - name: Build STARFISH hardware firmware
         env:
           INPUT_VERSION: ${{ inputs.release_version }}
         run: |
@@ -96,7 +95,6 @@ jobs:
           elif [[ -n "${INPUT_VERSION}" ]]; then
             version="${INPUT_VERSION#v}"
           fi
-
           rm -rf dist-release dist-pages
           mkdir -p dist-release dist-pages
           if [[ -n "$version" ]]; then
@@ -112,21 +110,50 @@ jobs:
           fi
           ls -lh dist-release/
 
+      # NEW: Browser emulator build
+      - name: Setup Emscripten
+        uses: emscripten-core/setup-emsdk@v15
+        with:
+          version: latest
+
+      - name: Build STARFISH Web Emulator
+        run: |
+          set -euo pipefail
+          bash ./build.sh --web
+          test -f app/build/emu/index.html
+          test -f app/build/emu/app.wasm
+
       - name: Run host verification suite
         run: |
           set -euo pipefail
           sh tests/run_tests.sh
 
-      - name: Prepare Web MIDI installer site
+      - name: Prepare GitHub Pages site
         run: |
           set -euo pipefail
+
           cp index.html dist-pages/index.html
+
           if [ -d app/web/words ]; then
             cp -r app/web/words dist-pages/words
           fi
+
+          # Publish the browser emulator
+          mkdir -p dist-pages/emu
+          cp -r app/build/emu/. dist-pages/emu/
+
+          # Publish shared emulator fonts
+          if [ -d app/build/fonts ]; then
+            mkdir -p dist-pages/fonts
+            cp -r app/build/fonts/. dist-pages/fonts/
+          fi
+
           touch dist-pages/.nojekyll
 
-      - name: Upload single .fwsc artifact
+          echo "STARFISH emulator files:"
+          find dist-pages/emu -maxdepth 2 -type f
+
+      - name: Upload single firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: starfish.fwsc
@@ -139,20 +166,22 @@ jobs:
           path: dist-pages/
 
   release:
-    name: Publish .fwsc Release
+    name: Publish Firmware Release
     needs: build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+
     permissions:
       contents: write
+
     steps:
-      - name: Download built .fwsc
+      - name: Download built firmware
         uses: actions/download-artifact@v4
         with:
           name: starfish.fwsc
           path: dist-release
 
-      - name: Publish single .fwsc to GitHub Releases
+      - name: Publish firmware to GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -161,11 +190,13 @@ jobs:
           ls -lh dist-release/
           fwsc_path=$(ls -1 dist-release/*.fwsc | head -n 1)
           fwsc_name=$(basename "$fwsc_path")
+
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             tag="$GITHUB_REF_NAME"
             title="STARFISH ${tag#v}"
             flags=()
             if [[ "$tag" == *-* ]]; then flags+=(--prerelease --latest=false); fi
+
             if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
               gh release upload "$tag" "$fwsc_path" --repo "$GITHUB_REPOSITORY" --clobber
             else
@@ -194,23 +225,27 @@ jobs:
                 --latest
             fi
           fi
+
           {
             echo "### STARFISH Hardware Firmware"
             echo "- File: \`${fwsc_name}\`"
-            echo "- Direct single-file download: https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${fwsc_name}"
+            echo "- Direct download: https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${fwsc_name}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   pages:
-    name: Deploy Web Installer
+    name: Deploy STARFISH Website and Emulator
     needs: build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+
     permissions:
       pages: write
-      id-token: write # GitHub Pages deployment OIDC token
+      id-token: write
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Check or enable GitHub Pages
         id: check
@@ -219,6 +254,7 @@ jobs:
         run: |
           set -euo pipefail
           build_type=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || echo "")
+
           if [ -z "$build_type" ]; then
             gh api -X POST "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null 2>&1 || true
             build_type=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || echo "")
@@ -226,6 +262,7 @@ jobs:
             gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null 2>&1 || true
             build_type=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || echo "")
           fi
+
           if [ "$build_type" = "workflow" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
@@ -237,8 +274,8 @@ jobs:
         if: steps.check.outputs.enabled == 'true'
         uses: actions/deploy-pages@v4
 
-      - name: Notice if Pages is not enabled yet
+      - name: Notice if Pages is not enabled
         if: steps.check.outputs.enabled != 'true'
         run: |
-          echo "GitHub Pages (Source: GitHub Actions) is not enabled yet for ${GITHUB_REPOSITORY}."
-          echo "Enable it at https://github.com/${GITHUB_REPOSITORY}/settings/pages and re-run to publish index.html + starfish.fwsc."
+          echo "GitHub Pages is not enabled for ${GITHUB_REPOSITORY}."
+          echo "Enable it at https://github.com/${GITHUB_REPOSITORY}/settings/pages"
