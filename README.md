@@ -133,27 +133,6 @@ Implementation: `sf_dsp_start_easter_egg`
 
 ---
 
-## 🛠️ Build & Deployment
-
-STARFISH uses GitHub Actions for automated firmware compilation and GitHub Pages deployment.
-
-With GitHub Pages configured under:
-
-**Settings → Pages → Build and deployment → Source: GitHub Actions**
-
-The workflow `.github/workflows/release.yml` automatically compiles the firmware and publishes the web applications.
-
-Published resources include:
-
-- Web MIDI firmware installer
-- Interactive HTML user guide
-- Promotional and EDM showcase
-- Email announcement generator
-
-The web applications are served through GitHub Pages and can be accessed independently through the links above.
-
----
-
 ## 📜 Credits & License
 
 **License:** [Mozilla Public License 2.0 (MPL-2.0)](LICENSE)
