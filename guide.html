@@ -94,6 +94,26 @@
     transition: color 150ms ease;
   }
   nav.topnav a:hover { color: var(--fg); text-decoration: none; }
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .top-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .top-link:hover { border-color: var(--cyan); text-decoration: none; }
   .top-cta {
     display: inline-flex;
     align-items: center;
@@ -489,7 +509,10 @@
       <a href="#preset-dir">288 Presets</a>
       <a href="#io-flash">MIDI &amp; Flash</a>
     </nav>
-    <a href="./index.html" class="top-cta">Web Installer</a>
+    <div class="top-actions">
+      <a href="./edm.html" class="top-link">Promo &amp; EDM</a>
+      <a href="./index.html" class="top-cta">Web Installer</a>
+    </div>
   </div>
 </header>
 

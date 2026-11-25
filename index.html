@@ -16,10 +16,15 @@
   :root[data-theme="dark"] { --bg: #1c1814; --fg: #f2e8d8; --dim: #b3a28e; --accent: #f28a5a; --on-accent: #2a140a; --bad: #ff8a73; --focus: #79adff; }
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
-  main { max-width: 520px; margin: 0 auto; padding: 48px 16px 0; }
+  .sf-nav { max-width: 520px; margin: 0 auto; padding: 14px 16px 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; border-bottom: 1px solid color-mix(in srgb, var(--dim) 28%, transparent); padding-bottom: 12px; }
+  .sf-nav-links { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .sf-nav a { text-decoration: none; color: var(--dim); padding: 4px 10px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--dim) 32%, transparent); font-weight: 600; }
+  .sf-nav a:hover { border-color: var(--accent); color: var(--fg); }
+  .sf-nav a.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .lang { font-size: 13px; color: var(--dim); cursor: pointer; text-decoration: underline; background: none; padding: 4px 0; border: 0; }
+  main { max-width: 520px; margin: 0 auto; padding: 28px 16px 0; }
   footer { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
   h1 { font-size: 24px; font-weight: 600; margin: 0 0 24px; }
-  .lang { float: right; font-size: 13px; color: var(--dim); cursor: pointer; text-decoration: underline; background: none; padding: 4px 0; border: 0; }
   p { margin: 0 0 16px; }
   button { font: inherit; background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px; padding: 8px 22px; cursor: pointer; }
   button:disabled { opacity: .45; cursor: default; }
@@ -60,8 +65,15 @@
 </style>
 </head>
 <body>
-<main>
+<nav class="sf-nav" aria-label="STARFISH pages">
+  <div class="sf-nav-links">
+    <a href="./index.html" class="active">Web Installer</a>
+    <a href="./guide.html">User Guide</a>
+    <a href="./edm.html">Promo &amp; EDM</a>
+  </div>
   <button type="button" class="lang" id="lang" lang="ja">日本語</button>
+</nav>
+<main>
   <h1>Install STARFISH</h1>
   <p data-t="intro">Connect the FM-1 by USB, then press Install. It works in Chrome or Edge; the browser asks once to allow MIDI: allow it.</p>
   <p data-t="warn">Do not unplug the USB cable while writing.</p>
