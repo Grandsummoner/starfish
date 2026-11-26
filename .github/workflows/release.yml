@@ -147,6 +147,15 @@ jobs:
           cp emu-midi.js dist-pages/emu/app.js
           cp emu-midi-worklet.js dist-pages/emu/app_worklet.js
 
+          # Shared top bar (Install / User guide / Emulator / Download firmware) on the three pages
+          cp starfish-nav.js dist-pages/starfish-nav.js
+          for f in index.html guide.html emu/index.html; do
+            src="starfish-nav.js"
+            if [ "$f" = "emu/index.html" ]; then src="../starfish-nav.js"; fi
+            sed -i "s#</body>#<script src=\"${src}\" defer></script></body>#" "dist-pages/$f"
+            grep -q "starfish-nav.js" "dist-pages/$f" || { echo "nav bar not added to $f (no </body>?)"; exit 1; }
+          done
+
           # Publish shared emulator fonts
           if [ -d app/build/fonts ]; then
             mkdir -p dist-pages/fonts
