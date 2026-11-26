@@ -150,6 +150,10 @@ static volatile uint32_t arp_gate_us;
 static volatile uint32_t arp_rot_ms;
 static volatile uint8_t arp_rot_offset;
 static volatile uint32_t arp_trig_seq;
+static volatile uint32_t arp_grid_step;
+static volatile uint8_t arp_sync_armed;
+static volatile uint8_t arp_prev_seq_play;
+static volatile uint8_t arp_prev_rate;
 static int8_t cur_patch_gain_db;
 
 static sf_loop_ev_t synth_loop[SYNTH_LOOP_MAX] PLAT_POOL;
@@ -1347,6 +1351,12 @@ void app_tick(void)
             if (seq_step == 0u) loop_cycle_us = tick_acc_us;
         }
     }
+    if (seq_playing && !arp_prev_seq_play) {
+        arp_grid_step = (uint32_t)seq_step;
+        arp_tick_us = tick_acc_us;
+        arp_sync_armed = 0u;
+    }
+    arp_prev_seq_play = seq_playing;
     if (arp_active) {
         uint8_t notes_sorted[40], notes_ord[40];
         uint32_t k, n_notes = 0u, n_ord = 0u;
@@ -1354,7 +1364,13 @@ void app_tick(void)
             60000000u, 40000000u, 30000000u, 45000000u, 20000000u,
             15000000u, 22500000u, 10000000u, 7500000u, 5000000u
         };
-        uint32_t rate_us = RATE_DIV[set.arp_rate % SF_NARP_RATE] / (uint32_t)(set.bpm < 40u ? 40u : set.bpm);
+        static const uint8_t BEAT_DIV[SF_NARP_RATE] = {
+            4u, 3u, 2u, 4u, 3u, 4u, 4u, 6u, 8u, 12u
+        };
+        uint8_t r_idx = (uint8_t)(set.arp_rate % SF_NARP_RATE);
+        uint32_t bpm_v = (uint32_t)(set.bpm < 40u ? 40u : set.bpm);
+        uint32_t rate_us = RATE_DIV[r_idx] / bpm_v;
+        uint32_t sw = set.swing < 50u ? 50u : (set.swing > 75u ? 75u : set.swing);
         uint32_t octs = set.arp_octs < 1u ? 1u : (set.arp_octs > 3u ? 3u : set.arp_octs);
         for (k = 0; k < NKEYS && n_notes < 40u; k++) {
             if (arp_held[k] || (set.arp_latch && arp_latch_buf[k]))
@@ -1397,6 +1413,8 @@ void app_tick(void)
         if (n_notes == 0u) {
             arp_tick_us = 0u;
             arp_pos = 0u;
+            arp_grid_step = 0u;
+            arp_sync_armed = 0u;
             arp_walk_idx = 0u;
             arp_rot_ms = 0u;
             arp_rot_offset = 0u;
@@ -1404,6 +1422,8 @@ void app_tick(void)
             uint8_t is_rot = (set.arp_mode >= SF_ARP_ROT_S) ? 1u : 0u;
             uint32_t rot_n = (is_rot && n_notes > SF_MAX_VOICES) ? SF_MAX_VOICES : n_notes;
             uint32_t rot_total = rot_n * octs;
+            uint8_t synced_now = 0u;
+            uint32_t cur_arp_us;
             if (is_rot && rot_total > 0u) {
                 uint32_t rot_period_ms = (set.arp_mode == SF_ARP_ROT_S) ? 2400u : (set.arp_mode == SF_ARP_ROT_M) ? 750u : 220u;
                 arp_rot_ms++;
@@ -1415,14 +1435,45 @@ void app_tick(void)
                 arp_rot_ms = 0u;
                 arp_rot_offset = 0u;
             }
-            arp_tick_us += 1000u;
-            if (arp_tick_us >= rate_us) {
+            if (seq_playing && (!arp_sync_armed || r_idx != arp_prev_rate)) {
+                arp_prev_rate = r_idx;
+                arp_sync_armed = 1u;
+                synced_now = 1u;
+                if (r_idx == 5u) {
+                    arp_grid_step = (uint32_t)seq_step;
+                    arp_tick_us = tick_acc_us;
+                } else {
+                    uint32_t base_us = 15000000u / bpm_v;
+                    uint32_t bar_s = (uint32_t)seq_step & 15u;
+                    uint32_t cur_step_us = ((bar_s & 1u) == 0u) ? ((base_us * sw) / 50u) : ((base_us * (100u - sw)) / 50u);
+                    uint32_t step_frac_us = (cur_step_us > 0u) ? ((tick_acc_us * base_us) / cur_step_us) : 0u;
+                    if (step_frac_us > base_us) step_frac_us = base_us;
+                    uint32_t unswung_bar_us = bar_s * base_us + step_frac_us;
+                    arp_grid_step = rate_us > 0u ? (unswung_bar_us / rate_us) : 0u;
+                    arp_tick_us = rate_us > 0u ? (unswung_bar_us % rate_us) : 0u;
+                }
+            } else if (!seq_playing) {
+                arp_prev_rate = r_idx;
+            }
+            if (!synced_now) {
+                arp_tick_us += 1000u;
+                if (seq_playing && r_idx != 3u && r_idx != 5u && r_idx != 6u &&
+                    ((uint32_t)seq_step & 15u) == 0u && tick_acc_us < 1000u && arp_tick_us < 4000u) {
+                    arp_tick_us = tick_acc_us;
+                }
+            }
+            cur_arp_us = (r_idx == 5u)
+                ? (((arp_grid_step & 1u) == 0u) ? ((rate_us * sw) / 50u) : ((rate_us * (100u - sw)) / 50u))
+                : rate_us;
+            if (cur_arp_us < 1000u) cur_arp_us = 1000u;
+            if (arp_tick_us >= cur_arp_us) {
                 uint32_t total = is_rot ? rot_total : (n_notes * octs), idx = 0u;
-                uint32_t step_idx = arp_pos;
+                uint32_t grid_idx = arp_grid_step;
+                uint8_t is_downbeat = ((grid_idx % (uint32_t)BEAT_DIV[r_idx]) == 0u) ? 1u : 0u;
                 uint8_t dens = set.arp_density < 10u ? 100u : (set.arp_density > 100u ? 100u : set.arp_density);
                 uint8_t acc = set.arp_accent > 100u ? 35u : set.arp_accent;
                 uint8_t base_n, pick_oct;
-                arp_tick_us = 0u;
+                arp_tick_us -= cur_arp_us;
                 arp_gate_us = 0u;
                 if (arp_cur_note >= 0) {
                     sf_dsp_note_off((uint8_t)arp_cur_note);
@@ -1449,7 +1500,8 @@ void app_tick(void)
                     idx = arp_pos % total;
                 }
                 arp_pos = (uint8_t)((arp_pos + 1u) % (total * 2u));
-                if (dens >= 100u || ((step_idx & 3u) == 0u && dens >= 25u) || ((xorshift32() % 100u) < dens)) {
+                arp_grid_step = (r_idx == 5u && seq_playing) ? (uint32_t)seq_step : (arp_grid_step + 1u);
+                if (dens >= 100u || (is_downbeat && dens >= 25u) || ((xorshift32() % 100u) < dens)) {
                     uint8_t vel;
                     if (set.arp_mode == SF_ARP_ORDER && n_ord > 0u) {
                         uint32_t ot = n_ord * octs;
@@ -1462,7 +1514,7 @@ void app_tick(void)
                         pick_oct = (uint8_t)(idx / pool_len);
                     }
                     if (acc == 0u) vel = 106u;
-                    else if ((step_idx & 3u) == 0u) vel = (uint8_t)(90u + ((uint32_t)acc * 37u) / 100u);
+                    else if (is_downbeat) vel = (uint8_t)(90u + ((uint32_t)acc * 37u) / 100u);
                     else vel = (uint8_t)(96u - ((uint32_t)acc * 36u) / 100u);
                     uint8_t nn = quantize_note((int32_t)base_n + (int32_t)pick_oct * 12);
                     sf_dsp_note_on(nn, vel);
@@ -1472,6 +1524,7 @@ void app_tick(void)
             }
         }
     } else {
+        arp_sync_armed = 0u;
         arp_rot_ms = 0u;
         arp_rot_offset = 0u;
         if (arp_cur_note >= 0) {
@@ -4188,7 +4241,9 @@ static void draw_center_stage(uint32_t now, float rms)
             uint32_t rp = (am == SF_ARP_ROT_S) ? 2400u : (am == SF_ARP_ROT_M) ? 750u : 220u;
             rot_shift = (now / rp) & 7u;
         }
-        uint32_t beat = (now / (15000u / (set.bpm < 40u ? 40u : set.bpm))) & 7u;
+        uint32_t beat = seq_playing
+            ? ((uint32_t)seq_step & 7u)
+            : ((now / (15000u / (set.bpm < 40u ? 40u : set.bpm))) & 7u);
         int32_t gw = 10 + ((int32_t)(set.arp_gate - 20u) * 8) / 75;
         char info[32], nb[6];
         cv_rect(10, 88, 66, 18, COL_GRN_DIM);
