@@ -734,7 +734,7 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
         v->hyper_ph[1] = 0.37f;
         v->hyper_ph[2] = 0.61f;
         v->hyper_ph[3] = 0.83f;
-        v->pitch_cur = (dsp.cfg && dsp.cfg->patch.glide > 0u && !is_jingle) ? dsp.last_pitch_note : (float)note;
+        v->pitch_cur = (dsp.cfg && sf_glide(&dsp.cfg->patch) > 0u && !is_jingle) ? dsp.last_pitch_note : (float)note;
     }
     v->active = 1u;
     v->gate = 1u;
@@ -1145,7 +1145,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
     float lfo1_hz = 0.1f + ((float)p->lfo1_rate * (1.0f / 127.0f)) * ((float)p->lfo1_rate * (1.0f / 127.0f)) * 18.0f;
     float lfo2_hz = 0.1f + ((float)p->lfo2_rate * (1.0f / 127.0f)) * ((float)p->lfo2_rate * (1.0f / 127.0f)) * 18.0f;
-    float swarm_hz = sf_clamp((float)p->swarm_rate * 0.05f, 0.05f, 4.0f);
+    float swarm_hz = sf_clamp((float)sf_swarm_rate(p) * 0.05f, 0.05f, 4.0f);
     dsp.lfo1_ph = fast_wrap01(dsp.lfo1_ph + lfo1_hz * (float)n * INV_SR);
     dsp.lfo2_ph = fast_wrap01(dsp.lfo2_ph + lfo2_hz * (float)n * INV_SR);
     dsp.swarm_ph = fast_wrap01(dsp.swarm_ph + swarm_hz * (float)n * INV_SR);
@@ -1169,16 +1169,19 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float q1 = sf_clamp(byte_to_reso_q(p->f1_res) + reso_mod_amt, 0.5f, 15.5f);
     float q2 = sf_clamp(byte_to_reso_q(p->f2_res), 0.5f, 15.5f);
     float fenv_oct = (float)p->f1_env_s * 0.055f;
-    float kf_amt = (float)p->f_keyfollow * 0.01f;
-    float f_bal = (float)p->f_bal * 0.01f;
+    float f2env_oct = (float)sf_f2_env(p) * 0.055f;
+    float vel_sens_f = (float)sf_vel_sens(p) * 0.01f;
+    float vel_amp_min = sf_clamp(1.0f - vel_sens_f * 1.30f, 0.05f, 1.0f);
+    float kf_amt = (float)sf_f_keyfollow(p) * 0.01f;
+    float f_bal = (float)sf_f_bal(p) * 0.01f;
 
     float osc_bal = (float)p->osc_bal * 0.01f;
     float o1_mix = 1.0f - osc_bal * 0.65f;
     float o2_mix = 0.35f + osc_bal * 0.65f;
-    float sub_mix = (float)p->sub_vol * 0.008f;
-    float noise_mix = (float)p->noise_vol * 0.006f;
+    float sub_mix = (float)sf_sub_vol(p) * 0.008f;
+    float noise_mix = (float)sf_noise_vol(p) * 0.006f;
     float ring_mix = (float)p->ring_vol * 0.008f;
-    float fm_amt = (float)p->fm_amt * 0.012f;
+    float fm_amt = (float)sf_fm_amt(p) * 0.012f;
     float pw = sf_clamp(0.08f + (float)p->pw * (0.84f / 127.0f), 0.08f, 0.92f);
     float wt_pos = (float)p->pw * (1.0f / 127.0f);
     float osc2_ratio = sf_ram_exp2f(((float)p->osc2_semi + (float)p->osc2_detune * 0.0078f) * (1.0f / 12.0f));
@@ -1197,7 +1200,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float trem = sf_clamp((1.0f - amp_d) + mod_amp * 0.36f, 0.16f, 1.0f);
     float punch_amt = dsp.jingle_active ? 0.0f : (float)sf_punch_pct(p) * 0.01f;
     float uni_pan_norm = (float)p->uni_pan * 0.01f;
-    float glide_coeff = (p->glide == 0u) ? 1.0f : sf_clamp(1.0f - (float)p->glide * 0.0108f, 0.03f, 0.9f);
+    float glide_coeff = (sf_glide(p) == 0u) ? 1.0f : sf_clamp(1.0f - (float)sf_glide(p) * 0.0108f, 0.03f, 0.9f);
     dsp.pitch_bend_cur += (dsp.pitch_bend_targ - dsp.pitch_bend_cur) * 0.35f;
     dsp.mod_wheel_cur += (dsp.mod_wheel_targ - dsp.mod_wheel_cur) * 0.25f;
     /* Adaptive CPU load shedding when polyphonic synth chords + drum machine run together */
@@ -1224,7 +1227,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
         float kf_oct = ((vc->pitch_cur - 60.0f) * (1.0f / 12.0f)) * kf_amt;
         float vel_norm = (float)vc->vel * (1.0f / 127.0f);
-        float vel_cut = (vel_norm - 0.55f) * 1.15f;
+        float vel_cut = (vel_norm - 0.55f) * (2.30f * vel_sens_f);
         float c1_oct = mod_cut1 * 2.5f + (vc->flt_env * fenv_oct) + kf_oct + vel_cut + ((float)vc->prs * (1.0f / 127.0f)) * 1.4f + dsp.mod_wheel_cur * 3.2f + punch_cur * 1.35f;
         float cut_scale = sf_ram_exp2f(c1_oct);
         float cut1_hz = sf_clamp(cut1_base * cut_scale, 40.0f, 12500.0f);
@@ -1233,7 +1236,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float q1_eff = q1 * (1.0f - hf1 * 0.65f);
         if (q1_eff < 0.5f) q1_eff = 0.5f;
 
-        float c2_oct = mod_cut2 * 2.5f + kf_oct * 0.5f + vel_cut * 0.4f + dsp.mod_wheel_cur * 1.8f;
+        float c2_oct = mod_cut2 * 2.5f + (vc->flt_env * f2env_oct) + kf_oct * 0.5f + vel_cut * 0.4f + dsp.mod_wheel_cur * 1.8f;
         float cut2_hz = sf_clamp(cut2_base * sf_ram_exp2f(c2_oct), 40.0f, 12500.0f);
         if (vc->age >= vis_age) {
             vis_age = vc->age;
@@ -1261,7 +1264,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float drv_comp = 1.0f / (1.0f + (drive - 1.0f) * 0.36f);
         float q_comp = 1.0f / (1.0f + sf_clamp((q1_eff - 2.2f) * 0.048f, 0.0f, 0.45f));
         float norm_gain = sf_clamp(flt_comp * cut_comp * drv_comp * q_comp, 0.52f, 1.38f);
-        float vel_g = (0.35f + 0.65f * vel_norm) * 0.175f * norm_gain * trem;
+        float vel_g = (vel_amp_min + (1.0f - vel_amp_min) * vel_norm) * 0.175f * norm_gain * trem;
         if (vc->vel_g_cur < 0.0f)
             vc->vel_g_cur = vel_g;
         float vpan = sf_clamp((((float)(v & 3u) - 1.5f) * 0.22f * spread * uni_pan_norm) + mod_pan * 0.5f, -0.82f, 0.82f);
@@ -1473,8 +1476,8 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         + (l1d == SF_LFO_CHORUS ? lfo1 * 0.22f : 0.0f) + (l2d == SF_LFO_CHORUS ? lfo2 * 0.16f : 0.0f), 0.0f, 0.68f);
     float phas_mix = sf_clamp((float)p->fx_phaser * 0.0085f - sf_clamp(phas_swing * 0.40f, 0.0f, 0.18f)
         + (l1d == SF_LFO_PHASER ? lfo1 * 0.24f : 0.0f) + (l2d == SF_LFO_PHASER ? lfo2 * 0.18f : 0.0f), 0.0f, 0.82f);
-    float phas_hz = sf_clamp((float)p->fx_phaser_rate * 0.1f, 0.1f, 6.0f);
-    float del_fb = sf_clamp((float)p->fx_del_fb * 0.01f, 0.0f, 0.80f);
+    float phas_hz = sf_clamp((float)sf_fx_phaser_rate(p) * 0.1f, 0.1f, 6.0f);
+    float del_fb = sf_clamp((float)sf_fx_del_fb(p) * 0.01f, 0.0f, 0.80f);
     float del_mix = sf_clamp((float)p->fx_del_mix * 0.0072f - sf_clamp(del_swing * 0.55f, 0.0f, 0.22f)
         + (l1d == SF_LFO_DELAY ? lfo1 * 0.20f : 0.0f) + (l2d == SF_LFO_DELAY ? lfo2 * 0.15f : 0.0f), 0.0f, 0.68f);
     float del_rev_feed_g = (l1d == SF_LFO_DELAY || l2d == SF_LFO_DELAY) ? 0.10f : 0.15f;

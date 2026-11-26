@@ -154,6 +154,125 @@ static inline __attribute__((always_inline)) uint8_t sf_lfo1_shape(const sf_pres
 static inline __attribute__((always_inline)) uint8_t sf_lfo2_dest(const sf_preset_t *p) { return p->lfo2_meta & 15u; }
 static inline __attribute__((always_inline)) uint8_t sf_lfo2_shape(const sf_preset_t *p) { return (p->lfo2_meta >> 4) & 3u; }
 
+static inline __attribute__((always_inline)) uint8_t sf_f_keyfollow(const sf_preset_t *p) { return p->f_keyfollow & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_f_keyfollow(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->f_keyfollow = (uint8_t)((p->f_keyfollow & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_f_bal(const sf_preset_t *p) { return p->f_bal & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_f_bal(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->f_bal = (uint8_t)((p->f_bal & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_glide(const sf_preset_t *p) { return p->glide & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_glide(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 85u ? 85u : v;
+    p->glide = (uint8_t)((p->glide & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_swarm_rate(const sf_preset_t *p)
+{
+    uint8_t v = p->swarm_rate & 0x7Fu;
+    return v < 1u ? 1u : (v > 80u ? 80u : v);
+}
+static inline __attribute__((always_inline)) void sf_set_swarm_rate(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v < 1u ? 1u : (v > 80u ? 80u : v);
+    p->swarm_rate = (uint8_t)((p->swarm_rate & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_del_fb(const sf_preset_t *p) { return p->fx_del_fb & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fx_del_fb(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 95u ? 95u : v;
+    p->fx_del_fb = (uint8_t)((p->fx_del_fb & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_phaser_rate(const sf_preset_t *p)
+{
+    uint8_t v = p->fx_phaser_rate & 0x3Fu;
+    return v < 1u ? 1u : (v > 60u ? 60u : v);
+}
+static inline __attribute__((always_inline)) void sf_set_fx_phaser_rate(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v < 1u ? 1u : (v > 60u ? 60u : v);
+    p->fx_phaser_rate = (uint8_t)((p->fx_phaser_rate & 0xC0u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_sub_vol(const sf_preset_t *p) { return p->sub_vol & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_sub_vol(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->sub_vol = (uint8_t)((p->sub_vol & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fm_amt(const sf_preset_t *p) { return p->fm_amt & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fm_amt(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->fm_amt = (uint8_t)((p->fm_amt & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_noise_vol(const sf_preset_t *p) { return p->noise_vol & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_noise_vol(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->noise_vol = (uint8_t)((p->noise_vol & 0x80u) | cl);
+}
+
+/* Packed 5-bit Filter 2 Envelope depth (-100..+100% step 10%; ROM 0-bits -> idx 10 -> 0%) */
+static inline __attribute__((always_inline)) int8_t sf_f2_env(const sf_preset_t *p)
+{
+    uint8_t raw = (uint8_t)(((p->f_keyfollow >> 7) & 1u)
+                          | (((p->f_bal >> 7) & 1u) << 1)
+                          | (((p->glide >> 7) & 1u) << 2)
+                          | (((p->swarm_rate >> 7) & 1u) << 3)
+                          | (((p->fx_del_fb >> 7) & 1u) << 4));
+    uint8_t idx = (uint8_t)((raw ^ 10u) & 0x1Fu);
+    if (idx > 20u) idx = 20u;
+    return (int8_t)(((int32_t)idx - 10) * 10);
+}
+static inline __attribute__((always_inline)) void sf_set_f2_env(sf_preset_t *p, int32_t val)
+{
+    int32_t cl = val < -100 ? -100 : (val > 100 ? 100 : val);
+    uint8_t idx = (uint8_t)((cl + 105) / 10);
+    if (idx > 20u) idx = 20u;
+    uint8_t raw = (uint8_t)((idx ^ 10u) & 0x1Fu);
+    p->f_keyfollow = (uint8_t)((p->f_keyfollow & 0x7Fu) | ((raw & 1u) << 7));
+    p->f_bal       = (uint8_t)((p->f_bal & 0x7Fu)       | (((raw >> 1) & 1u) << 7));
+    p->glide       = (uint8_t)((p->glide & 0x7Fu)       | (((raw >> 2) & 1u) << 7));
+    p->swarm_rate  = (uint8_t)((p->swarm_rate & 0x7Fu)  | (((raw >> 3) & 1u) << 7));
+    p->fx_del_fb   = (uint8_t)((p->fx_del_fb & 0x7Fu)   | (((raw >> 4) & 1u) << 7));
+}
+
+/* Packed 5-bit Velocity Sensitivity (0..100% step 5%; ROM 0-bits -> idx 10 -> 50%) */
+static inline __attribute__((always_inline)) uint8_t sf_vel_sens(const sf_preset_t *p)
+{
+    uint8_t raw = (uint8_t)(((p->fx_phaser_rate >> 6) & 3u)
+                          | (((p->sub_vol >> 7) & 1u) << 2)
+                          | (((p->fm_amt >> 7) & 1u) << 3)
+                          | (((p->noise_vol >> 7) & 1u) << 4));
+    uint8_t idx = (uint8_t)((raw ^ 10u) & 0x1Fu);
+    if (idx > 20u) idx = 20u;
+    return (uint8_t)(idx * 5u);
+}
+static inline __attribute__((always_inline)) void sf_set_vel_sens(sf_preset_t *p, int32_t val)
+{
+    int32_t cl = val < 0 ? 0 : (val > 100 ? 100 : val);
+    uint8_t idx = (uint8_t)((cl + 2) / 5);
+    if (idx > 20u) idx = 20u;
+    uint8_t raw = (uint8_t)((idx ^ 10u) & 0x1Fu);
+    p->fx_phaser_rate = (uint8_t)((p->fx_phaser_rate & 0x3Fu) | ((raw & 3u) << 6));
+    p->sub_vol        = (uint8_t)((p->sub_vol & 0x7Fu)        | (((raw >> 2) & 1u) << 7));
+    p->fm_amt         = (uint8_t)((p->fm_amt & 0x7Fu)         | (((raw >> 3) & 1u) << 7));
+    p->noise_vol      = (uint8_t)((p->noise_vol & 0x7Fu)      | (((raw >> 4) & 1u) << 7));
+}
+
 static inline __attribute__((always_inline)) uint8_t sf_arp_mode(const sf_preset_t *p) { return p->arp_meta & 3u; }
 static inline __attribute__((always_inline)) uint8_t sf_arp_rate(const sf_preset_t *p) { return (p->arp_meta >> 2) & 3u; }
 static inline __attribute__((always_inline)) uint8_t sf_arp_octs(const sf_preset_t *p) { return ((p->arp_meta >> 4) & 3u) + 1u; }
