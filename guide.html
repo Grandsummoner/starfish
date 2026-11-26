@@ -257,7 +257,7 @@
   }
   .btn-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
   .btn-group-label {
@@ -647,13 +647,13 @@
     </p>
     <div class="split-2">
       <div class="panel-card">
-        <h3 style="margin:0 0 12px;font-size:18px;">Audio &amp; MIDI Routing (GLO 5/5 &amp; REC)</h3>
+        <h3 style="margin:0 0 12px;font-size:18px;">Audio &amp; MIDI Routing (GLO 4/4 &amp; REC)</h3>
         <ul class="clean-list">
-          <li><strong>USB Audio Independence:</strong> The physical speaker/headphone amplifier level is controlled on <code>GLO 5/5 → K4 (SPK/HP)</code>, including an <code>OFF</code> setting for silent USB-audio monitoring into Ableton or another DAW at full 44.1 kHz line level.</li>
-          <li><strong>USB Synth + Drum Mix:</strong> <code>HOME 3/3</code> balances global <code>SYNTH LVL</code>, <code>KICK DUCK</code> (sidechain compression depth), <code>DUCK SRC</code> (Kick / Kick+Snare / All), and <code>DRM LVL</code>.</li>
-          <li><strong>Bluetooth MIDI (REC button):</strong> Short-press <code>REC</code> to open the BLE scan/connect list for wireless keyboards or computers; hold <code>REC</code> for 1 second to toggle Bluetooth radio power.</li>
+          <li><strong>USB Audio Independence:</strong> The physical speaker/headphone amplifier level is controlled on <code>GLO 4/4 → K4 (OUT LEVEL)</code> (`AUTO 0dB`, `LINE -6dB`, `BOOST +3dB`) while USB Audio stays at full 44.1 kHz studio line level.</li>
+          <li><strong>USB Synth + Drum Mix:</strong> <code>HOME 3/3</code> balances global <code>SYNTH LVL</code>, <code>KICK DUCK</code> (sidechain compression depth), <code>DUCK SRC</code> (any of the 8 drum voices <code>BD..RS</code>), and <code>DRM LVL</code>.</li>
+          <li><strong>Bluetooth MIDI (REC / GLO+HOME):</strong> Hold <code>GLO + HOME</code> to open the BLE scan/connect list for wireless keyboards or computers; toggle BT radio and routing (`PC + KYBD`, `KYBD HOST`, `PC DEVICE`, `OFF`) on <code>GLO 4/4 → K3</code>.</li>
           <li><strong>Hardware Combos &amp; Easter Eggs:</strong> Press <code>OCT- + OCT+</code> together for the <strong>STARFISH About App</strong> page &amp; Chorusy Cmaj9 shimmer; hold <code>HOME + SEL</code> for A/B Patch Compare; hold <code>GLO + ARP</code> for Disco Starfish; hold <code>ARP + OCT+/-</code> for Arp Latch.</li>
-          <li><strong>Channel Assignment:</strong> <code>GLO 5/5</code> sets Synth RX/TX MIDI channel (K1), Drum channel (K2), and BLE mode (K3: Off / Computer / External Keyboard).</li>
+          <li><strong>Channel Assignment:</strong> <code>GLO 4/4</code> sets Synth RX/TX MIDI channel (K1: OMNI / 1–16) and Drum MIDI channel (K2: OFF / 1–16).</li>
         </ul>
       </div>
 
@@ -705,7 +705,7 @@
         {
           title: "PATCH PERF (1/3)",
           sub: "Filter 1 cutoff/resonance, Filter 2 cutoff, dual-filter balance & reactive mascot",
-          note: "SELECT switches Banks A–I and User Bank X. PRESET scrolls the 32 slots per bank. ALGO changes the OLED theme palette.",
+          note: "SELECT scrolls presets 0–31. PRESETS switches Banks A–I and User Bank X. ALGORITHM changes the synth oscillator engine.",
           knobs: [
             { name: "CUTOFF 1", min: 0, max: 127, val: 72, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Primary Filter 1 cutoff frequency (40 Hz to 12.5 kHz)." },
             { name: "RESO 1", min: 0, max: 127, val: 42, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 1 resonance emphasis (headroom-compensated when modulated by LFO)." },
@@ -719,7 +719,7 @@
           note: "PATCH GAIN automatically persists per preset without touching ROM Banks A–I. TILT EQ, M/S WIDTH, and PUNCH save into Bank X.",
           knobs: [
             { name: "PATCH GAIN", min: -12, max: 12, val: 0, unit: "dB", fmt: v => `${v >= 0 ? "+" : ""}${v}dB`, desc: "Auto-saved per-patch level trim (-12 dB to +12 dB) for matching live sets." },
-            { name: "TILT EQ", min: -7, max: 7, val: 2, unit: "", fmt: v => `${v >= 0 ? "+" : ""}${v}`, desc: "Pivoting spectral tilt: negative warms lows/softens highs; positive opens air." },
+            { name: "TILT EQ", min: -7, max: 7, val: 2, unit: "", fmt: v => v === 0 ? "FLAT" : `${v > 0 ? "+" : ""}${v}`, desc: "Pivoting spectral tilt: negative warms lows/softens highs; positive opens air." },
             { name: "M/S WIDTH", min: 0, max: 200, val: 115, unit: "%", fmt: v => `${v}%`, desc: "Mid/Side stereo width matrix from mono focus (0%) to wide stereo spread (200%)." },
             { name: "PUNCH", min: 0, max: 100, val: 40, unit: "%", fmt: v => `${v}%`, desc: "Fast attack transient snap for bass, plucks, and percussive synth lines." }
           ]
@@ -731,7 +731,7 @@
           knobs: [
             { name: "SYNTH LVL", min: 0, max: 100, val: 85, unit: "%", fmt: v => `${v}%`, desc: "Master synthesizer output bus level relative to drums." },
             { name: "KICK DUCK", min: 0, max: 100, val: 38, unit: "%", fmt: v => `${v}%`, desc: "Sidechain compression ducking amount applied to synth voices on drum hits." },
-            { name: "DUCK SRC", min: 0, max: 2, val: 0, unit: "", fmt: v => ["KICK", "KICK+SD", "ALL DRM"][v], desc: "Trigger source driving synth sidechain pumping: Kick only, Kick+Snare, or All Drums." },
+            { name: "DUCK SRC", min: 0, max: 7, val: 0, unit: "", fmt: v => ["BD","SD","CH","OH","CP","TM","RD","RS"][v], desc: "Drum voice triggering sidechain pumping (BD Kick through RS Rimshot)." },
             { name: "DRM LVL", min: 0, max: 100, val: 82, unit: "%", fmt: v => `${v}%`, desc: "Master drum sequencer output level." }
           ]
         }
@@ -766,36 +766,25 @@
     SEL: {
       subs: [
         {
-          title: "FILTER MODE (1/3)",
-          sub: "Live dual-filter response curve (LP / BP / HP / NOTCH)",
-          note: "Routes two independent filters in Serial (F1→F2), Parallel (F1||F2), or Split (Osc1→F1 / Osc2→F2).",
+          title: "FILTER ARCH (1/2)",
+          sub: "Filter 1 & Filter 2 response modes, Serial/Parallel/Split routing & Filter 2 resonance",
+          note: "Cutoffs, Primary Resonance, and Filter Balance live on HOME 1/3 for instant performance access without menu duplication.",
           knobs: [
-            { name: "FILTER 1", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","NOTCH"][v], desc: "Filter 1 slope response mode." },
+            { name: "F1 TYPE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","BS"][v], desc: "Filter 1 slope response mode (Lowpass, Bandpass, Highpass, Notch)." },
             { name: "ROUTING", min: 0, max: 2, val: 0, unit: "", fmt: v => ["SERIAL","PARALLEL","SPLIT"][v], desc: "Signal topology between Filter 1 and Filter 2." },
-            { name: "FILTER 2", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","NOTCH"][v], desc: "Filter 2 response mode." },
-            { name: "F-BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Blend between Filter 1 and Filter 2 outputs." }
+            { name: "F2 TYPE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","BS"][v], desc: "Filter 2 response mode (Lowpass, Bandpass, Highpass, Notch)." },
+            { name: "RESO 2", min: 0, max: 127, val: 28, unit: "", fmt: v => `${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 2 resonance Q emphasis." }
           ]
         },
         {
-          title: "FILTER TONE (2/3)",
-          sub: "Direct Filter 1 & Filter 2 cutoff and resonance sculpting",
-          note: "Filter frequency curves update live on the OLED as knobs move or LFOs sweep.",
+          title: "FILTER MOD (2/2)",
+          sub: "Filter 1 & 2 envelope depths, keyboard pitch tracking & velocity sensitivity",
+          note: "F-ENV and F2 ENV independently sweep Filter 1 and Filter 2 (−100% to +100%). VEL SENS dials keyboard velocity response from flat (0%) to ultra-expressive (100%, default 50%).",
           knobs: [
-            { name: "CUTOFF 1", min: 0, max: 127, val: 68, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Filter 1 frequency." },
-            { name: "RESO 1", min: 0, max: 127, val: 48, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 1 resonance Q." },
-            { name: "CUTOFF 2", min: 0, max: 127, val: 92, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Filter 2 frequency." },
-            { name: "RESO 2", min: 0, max: 127, val: 28, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 2 resonance Q." }
-          ]
-        },
-        {
-          title: "FILTER ENV (3/3)",
-          sub: "Filter envelope depth, release & keyboard tracking",
-          note: "Positive Keyfollow opens the filter as you play higher notes on the keyboard.",
-          knobs: [
-            { name: "F-BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Filter 1/2 mix balance." },
-            { name: "F-ENV AMT", min: -100, max: 100, val: 54, unit: "%", fmt: v => `${v}%`, desc: "Bipolar filter envelope modulation depth." },
-            { name: "F-RELEASE", min: 0, max: 127, val: 44, unit: "", fmt: v => `${(0.02 + Math.pow(v/127, 2)*2.48).toFixed(2)}s`, desc: "Filter release time after note off." },
-            { name: "KEYFOLLOW", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Cutoff pitch tracking across the keyboard." }
+            { name: "F-ENV", min: -100, max: 100, val: 45, unit: "%", fmt: v => `${v > 0 ? "+" : ""}${v}%`, desc: "Bipolar Filter 1 envelope modulation depth." },
+            { name: "KEYFLW", min: 0, max: 100, val: 35, unit: "%", fmt: v => `${v}%`, desc: "Cutoff pitch tracking across the keyboard." },
+            { name: "F2 ENV", min: -100, max: 100, step: 10, val: 0, unit: "%", fmt: v => `${v > 0 ? "+" : ""}${v}%`, desc: "Bipolar Filter 2 envelope modulation depth (−100% to +100% in 10% steps)." },
+            { name: "VEL SENS", min: 0, max: 100, step: 5, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Keyboard velocity sensitivity on amp dynamics & filter brightness (0% flat to 100% expressive, default 50%)." }
           ]
         }
       ]
@@ -803,9 +792,9 @@
     ENV: {
       subs: [
         {
-          title: "AMP ADSR (1/2)",
-          sub: "Live ADSR envelope curve with trigger playhead",
-          note: "Press ENV or turn ALGO to switch between Amp Envelope (cyan) and Filter Envelope (amber).",
+          title: "AMP ENV (1/2)",
+          sub: "Live ADSR envelope curve with live breakpoint highlight",
+          note: "Press ENV to toggle between Amp ADSR (1/2) and Filter ADSR (2/2).",
           knobs: [
             { name: "ATTACK", min: 0, max: 127, val: 12, unit: "", fmt: v => `${Math.round(5 + Math.pow(v/127, 2)*1995)}ms`, desc: "Time to reach peak volume on key press." },
             { name: "DECAY", min: 0, max: 127, val: 58, unit: "", fmt: v => `${(0.01 + Math.pow(v/127, 2)*2.99).toFixed(2)}s`, desc: "Fall time from peak down to sustain level." },
@@ -814,14 +803,14 @@
           ]
         },
         {
-          title: "FILTER ADSR (2/2)",
-          sub: "Filter modulation envelope curve & bipolar depth",
-          note: "Negative F-ENV values invert the filter sweep on note triggers.",
+          title: "FILTER ENV (2/2)",
+          sub: "Dedicated Filter ADSR modulation envelope",
+          note: "Filter Envelope modulation depth lives on SEL 2/2 (K1 F-ENV), keeping all four knobs here purely ADSR stages.",
           knobs: [
-            { name: "F-ATTACK", min: 0, max: 127, val: 8, unit: "", fmt: v => `${Math.round(5 + Math.pow(v/127, 2)*1995)}ms`, desc: "Filter sweep rise time." },
-            { name: "F-DECAY", min: 0, max: 127, val: 48, unit: "", fmt: v => `${(0.01 + Math.pow(v/127, 2)*2.49).toFixed(2)}s`, desc: "Filter sweep fall time." },
-            { name: "F-SUSTAIN", min: 0, max: 127, val: 44, unit: "", fmt: v => `${Math.round((v/127)*100)}%`, desc: "Held filter cutoff offset." },
-            { name: "F-ENV AMT", min: -100, max: 100, val: 56, unit: "%", fmt: v => `${v}%`, desc: "Bipolar modulation strength." }
+            { name: "F-ATK", min: 0, max: 127, val: 8, unit: "", fmt: v => `${Math.round(4 + Math.pow(v/127, 2)*1996)}ms`, desc: "Filter sweep rise time." },
+            { name: "F-DEC", min: 0, max: 127, val: 48, unit: "", fmt: v => `${(0.02 + Math.pow(v/127, 2)*2.48).toFixed(2)}s`, desc: "Filter sweep fall time." },
+            { name: "F-SUS", min: 0, max: 127, val: 44, unit: "", fmt: v => `${Math.round((v/127)*100)}%`, desc: "Held filter cutoff offset." },
+            { name: "F-REL", min: 0, max: 127, val: 44, unit: "", fmt: v => `${(0.02 + Math.pow(v/127, 2)*2.48).toFixed(2)}s`, desc: "Filter release time after note off." }
           ]
         }
       ]
@@ -833,10 +822,10 @@
           sub: "11 modulation targets with built-in FX & amp spike protection",
           note: "Targets: FLT1 CUT, FLT2 CUT, RESO, PITCH, PAN, SPREAD, AMP, CHORUS, PHASER, DELAY, REVERB.",
           knobs: [
-            { name: "RATE", min: 0, max: 127, val: 38, unit: "", fmt: v => `${(0.05 + Math.pow(v/127, 2)*17.95).toFixed(2)}Hz`, desc: "Oscillation speed (0.05 Hz to 18 Hz)." },
-            { name: "DEPTH", min: 0, max: 100, val: 45, unit: "%", fmt: v => `${v}%`, desc: "Modulation intensity with automatic FX headroom compensation." },
-            { name: "DEST", min: 0, max: 10, val: 0, unit: "", fmt: v => ["CUT1","CUT2","RESO","PITCH","PAN","SPR","AMP","CHO","PHS","DLY","REV"][v], desc: "Destination parameter modulated by LFO 1." },
-            { name: "SHAPE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["SINE","TRI","SAW","S&H"][v], desc: "LFO waveform (Sine, Triangle, Sawtooth, Sample & Hold)." }
+            { name: "RATE", min: 0, max: 127, val: 38, unit: "", fmt: v => `${(0.1 + (v/127)*19.9).toFixed(1)}Hz`, desc: "Oscillation speed (0.1 Hz to 20 Hz)." },
+            { name: "AMOUNT", min: 0, max: 100, val: 45, unit: "%", fmt: v => `${v}%`, desc: "Modulation intensity with automatic FX headroom compensation." },
+            { name: "DESTINATION", min: 0, max: 10, val: 0, unit: "", fmt: v => ["CUT1","CUT2","RESO","PITCH","PAN","SPR","AMP","CHO","PHS","DLY","REV"][v], desc: "Destination parameter modulated by LFO 1." },
+            { name: "SHAPE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["SINE","TRI","SAW","SQR"][v], desc: "LFO waveform (Sine, Triangle, Sawtooth, Square)." }
           ]
         },
         {
@@ -844,21 +833,21 @@
           sub: "Independent second modulation lane",
           note: "Combine slow Filter LFO 1 with rhythmic Pan, Pitch, or Phaser LFO 2 motion.",
           knobs: [
-            { name: "RATE", min: 0, max: 127, val: 54, unit: "", fmt: v => `${(0.05 + Math.pow(v/127, 2)*17.95).toFixed(2)}Hz`, desc: "LFO 2 speed." },
-            { name: "DEPTH", min: 0, max: 100, val: 32, unit: "%", fmt: v => `${v}%`, desc: "LFO 2 depth." },
-            { name: "DEST", min: 0, max: 10, val: 4, unit: "", fmt: v => ["CUT1","CUT2","RESO","PITCH","PAN","SPR","AMP","CHO","PHS","DLY","REV"][v], desc: "Destination parameter for LFO 2." },
-            { name: "SHAPE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["SINE","TRI","SAW","S&H"][v], desc: "LFO 2 waveform." }
+            { name: "RATE", min: 0, max: 127, val: 54, unit: "", fmt: v => `${(0.1 + (v/127)*19.9).toFixed(1)}Hz`, desc: "LFO 2 speed." },
+            { name: "AMOUNT", min: 0, max: 100, val: 32, unit: "%", fmt: v => `${v}%`, desc: "LFO 2 depth." },
+            { name: "DESTINATION", min: 0, max: 10, val: 4, unit: "", fmt: v => ["CUT1","CUT2","RESO","PITCH","PAN","SPR","AMP","CHO","PHS","DLY","REV"][v], desc: "Destination parameter for LFO 2." },
+            { name: "SHAPE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["SINE","TRI","SAW","SQR"][v], desc: "LFO 2 waveform." }
           ]
         },
         {
-          title: "SWARM & GLIDE (3/3)",
-          sub: "Analog pitch drift, portamento glide & oscillator character",
-          note: "Swarm adds gentle organic per-voice drift across unison stacks.",
+          title: "SWARM & DET (3/3)",
+          sub: "Analog pitch drift, portamento glide & fine Osc 2 micro-detune",
+          note: "Swarm adds gentle organic per-voice drift; OSC2 DETUNE adds lush Analog detune beat frequencies (0 to +50c).",
           knobs: [
             { name: "SWARM", min: 0, max: 100, val: 28, unit: "%", fmt: v => `${v}%`, desc: "Slow organic oscillator detune drift." },
-            { name: "SWM RATE", min: 1, max: 80, val: 16, unit: "", fmt: v => `${(v*0.05).toFixed(2)}Hz`, desc: "Drift modulation speed." },
-            { name: "GLIDE", min: 0, max: 85, val: 10, unit: "%", fmt: v => `${v}%`, desc: "Portamento pitch slide time between notes." },
-            { name: "KEYFLW", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Filter keyboard tracking." }
+            { name: "SWM HZ", min: 1, max: 80, val: 16, unit: "", fmt: v => `${(v*0.05).toFixed(2)}Hz`, desc: "Drift modulation speed." },
+            { name: "GLIDE", min: 0, max: 85, val: 10, unit: "", fmt: v => `${v}`, desc: "Portamento pitch slide time between notes." },
+            { name: "OSC2 DET", min: 0, max: 50, val: 8, unit: "c", fmt: v => `+${v}c`, desc: "Fine Oscillator 2 micro-detune in cents (+0c to +50c)." }
           ]
         }
       ]
@@ -868,11 +857,11 @@
         {
           title: "OSC & UNISON (1/3)",
           sub: "Dual oscillators, Hypersaw/Wavetable modes & unison voice stacking",
-          note: "Turn ALGO on EDIT (1/3) to cycle oscillator engine (HYPERSAW, SAW, PULSE, TRI, SYNC, WAVETABLE).",
+          note: "Turn ALGORITHM on synth pages to cycle oscillator engine (HYPERSAW, SAW, PULSE, TRIANGLE, SYNC, WAVETABLE).",
           knobs: [
             { name: "OSC BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Mix between Oscillator 1 and Oscillator 2." },
-            { name: "OSC2 SEMI", min: -24, max: 24, val: 7, unit: "st", fmt: v => `${v>=0?"+":""}${v}st`, desc: "Oscillator 2 pitch offset in semitones (-24 to +24)." },
-            { name: "SPREAD", min: 0, max: 100, val: 65, unit: "%", fmt: v => `${v}%`, desc: "Unison / Hypersaw stereo detune spread." },
+            { name: "OSC2 ST", min: -24, max: 24, val: 7, unit: "st", fmt: v => `${v>=0?"+":""}${v}st`, desc: "Oscillator 2 pitch offset in semitones (-24 to +24)." },
+            { name: "SPREAD", min: 0, max: 100, val: 65, unit: "%", fmt: v => `${v}%`, desc: "Unison / Hypersaw stereo detune spread (or Pulse Width / WT Pos)." },
             { name: "UNISON", min: 1, max: 5, val: 2, unit: "v", fmt: v => `${v}V`, desc: "Stacked unison voices per played note (1 to 5)." }
           ]
         },
@@ -882,7 +871,7 @@
           note: "Sub oscillator provides solid low-end foundation beneath resonant bandpass or sync leads.",
           knobs: [
             { name: "SUB LVL", min: 0, max: 100, val: 55, unit: "%", fmt: v => `${v}%`, desc: "Sub-oscillator level (-1 octave)." },
-            { name: "SUB WAVE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["SQR","SAW","SIN","TRI"][v], desc: "Sub-oscillator waveform shape." },
+            { name: "SUB WAVE", min: 0, max: 2, val: 0, unit: "", fmt: v => ["SQUARE","SINE","SAW"][v], desc: "Sub-oscillator waveform shape." },
             { name: "NOISE", min: 0, max: 100, val: 12, unit: "%", fmt: v => `${v}%`, desc: "White/pink noise generator level." },
             { name: "RING MOD", min: 0, max: 100, val: 0, unit: "%", fmt: v => `${v}%`, desc: "Osc1 × Osc2 metallic ring modulation blend." }
           ]
@@ -892,7 +881,7 @@
           sub: "Hard sync, FM cross-modulation, unison pan & drive",
           note: "DRIVE lives cleanly here inside the Synth Edit engine (not duplicated on Home).",
           knobs: [
-            { name: "HARD SYNC", min: 0, max: 1, val: 0, unit: "", fmt: v => v?"ON":"OFF", desc: "Locks Oscillator 2 phase to Oscillator 1." },
+            { name: "SYNC", min: 0, max: 1, val: 0, unit: "", fmt: v => v?"ON":"OFF", desc: "Locks Oscillator 2 phase to Oscillator 1." },
             { name: "FM AMT", min: 0, max: 100, val: 15, unit: "%", fmt: v => `${v}%`, desc: "Linear frequency modulation amount from Osc 2 into Osc 1." },
             { name: "UNI PAN", min: 0, max: 100, val: 75, unit: "%", fmt: v => `${v}%`, desc: "Stereo panning width across unison layers." },
             { name: "DRIVE", min: 0, max: 100, val: 22, unit: "%", fmt: v => `${v}%`, desc: "Pre-filter analog saturation drive." }
@@ -904,13 +893,13 @@
       subs: [
         {
           title: "ARP SETUP (1/2)",
-          sub: "Short-press ARP for ON/OFF; hold 0.5s or click again for rate & mode",
-          note: "Hold ARP + OCT+ to toggle Latch directly from any screen.",
+          sub: "Short-press ARP for menu pages; hold 0.42s to toggle ARP+LATCH ON/OFF",
+          note: "Hold ARP + OCT+/- to toggle Latch directly from any screen.",
           knobs: [
-            { name: "ARP ON", min: 0, max: 1, val: 1, unit: "", fmt: v => v?"ON":"OFF", desc: "Enable or bypass arpeggiator." },
-            { name: "LATCH", min: 0, max: 1, val: 0, unit: "", fmt: v => v?"HOLD":"OFF", desc: "Holds arpeggiated notes after fingers leave keys." },
-            { name: "MODE", min: 0, max: 8, val: 0, unit: "", fmt: v => ["UP","DOWN","UP/DN","RND","CHORD","ALT","ROT-S","ROT-M","ROT-F"][v], desc: "9 arpeggio traversal patterns including Chord & Rotating rhythms." },
-            { name: "RATE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["1/4","1/8","1/16","1/32"][v], desc: "Clock division synced to master BPM." }
+            { name: "ARP", min: 0, max: 1, val: 1, unit: "", fmt: v => v?"ON":"OFF", desc: "Enable or bypass arpeggiator." },
+            { name: "LATCH", min: 0, max: 1, val: 0, unit: "", fmt: v => v?"ON":"OFF", desc: "Holds arpeggiated notes after fingers leave keys." },
+            { name: "PATTERN", min: 0, max: 8, val: 0, unit: "", fmt: v => ["UP","DOWN","UP/DN","RAND","RND WLK","ORDER","ROT-S","ROT-M","ROT-F"][v], desc: "9 arpeggio traversal patterns including Order & Rotating rhythms." },
+            { name: "RATE", min: 0, max: 9, val: 5, unit: "", fmt: v => ["1/4","1/4T","1/8","1/8D","1/8T","1/16","1/16D","1/16T","1/32","1/32T"][v], desc: "10 clock divisions (straight, dotted, triplet) locked to master BPM." }
           ]
         },
         {
@@ -918,10 +907,47 @@
           sub: "Octave range, Euclidean density, gate length & accent",
           note: "Lower Density drops off-beat steps for instant syncopated grooves.",
           knobs: [
-            { name: "OCTAVES", min: 1, max: 4, val: 2, unit: "", fmt: v => `${v} OCT`, desc: "Span from 1 to 4 octaves." },
-            { name: "DENSITY", min: 15, max: 100, val: 100, unit: "%", fmt: v => `${v}%`, desc: "Step trigger probability / rhythmic density." },
-            { name: "GATE", min: 20, max: 95, val: 62, unit: "%", fmt: v => `${v}%`, desc: "Note duration before gate off." },
+            { name: "OCTAVES", min: 1, max: 3, val: 2, unit: "", fmt: v => `${v} OCT`, desc: "Span from 1 to 3 octaves." },
+            { name: "DENSITY", min: 10, max: 100, val: 100, unit: "%", fmt: v => `${v}%`, desc: "Step trigger probability / rhythmic density." },
+            { name: "GATE", min: 20, max: 95, val: 72, unit: "%", fmt: v => `${v}%`, desc: "Note duration before gate off." },
             { name: "ACCENT", min: 0, max: 100, val: 35, unit: "%", fmt: v => `${v}%`, desc: "Downbeat velocity & cutoff boost." }
+          ]
+        }
+      ]
+    },
+    SEQ: {
+      subs: [
+        {
+          title: "DRUM VOICE (1/3)",
+          sub: "Per-track drum synthesis shaping (BD, SD, CH, OH, CP, TM, RD, RS)",
+          note: "Turn SELECT in SEQ mode or tap top black capsule keys 1–8 to choose a drum voice; PRESETS selects Kit; ALGORITHM selects Drum Bus DSP.",
+          knobs: [
+            { name: "TUNE", min: -12, max: 12, val: 0, unit: "st", fmt: v => `${v >= 0 ? "+" : ""}${v}st`, desc: "Drum voice pitch offset (-12 to +12 semitones)." },
+            { name: "DECAY", min: 25, max: 200, val: 100, unit: "%", fmt: v => `${v}%`, desc: "Envelope tail decay multiplier (25% to 200%)." },
+            { name: "TONE", min: 0, max: 100, val: 60, unit: "%", fmt: v => `${v}%`, desc: "Brightness / click transient filter emphasis." },
+            { name: "LEVEL", min: 0, max: 100, val: 90, unit: "%", fmt: v => `${v}%`, desc: "Individual drum track level before global Drum Bus." }
+          ]
+        },
+        {
+          title: "EUCLID & GRV (2/3)",
+          sub: "Euclidean pattern generator, rotation, swing & instant groove presets",
+          note: "Global Swing lives cleanly here once; K4 loads TECHNO, HOUSE, ELECTRO, or BREAK preset grooves without clearing custom edits unintentionally.",
+          knobs: [
+            { name: "EUC HITS", min: 0, max: 16, val: 4, unit: "", fmt: v => `${v}/16`, desc: "Euclidean pulse count across the active drum loop length." },
+            { name: "ROTATE", min: 0, max: 15, val: 0, unit: "", fmt: v => `+${v}`, desc: "Step phase rotation shift for the Euclidean pattern." },
+            { name: "SWING", min: 50, max: 75, val: 52, unit: "%", fmt: v => `${v}%`, desc: "Shuffle timing applied cleanly across sequencer & arp 16th offbeats (50%–75%)." },
+            { name: "PATTERN", min: 0, max: 3, val: 0, unit: "", fmt: v => ["TECHNO","HOUSE","ELECTRO","BREAK"][v], desc: "Applies preset 16-step drum groove (TECHNO, HOUSE, ELECTRO, BREAK)." }
+          ]
+        },
+        {
+          title: "LOOP & BARS (3/3)",
+          sub: "Bar view selector, independent drum loop length, synth rec bars & quantize",
+          note: "REC BARS and REC SYNC control both multi-bar synth looper recording and SYNC SEQ drum loop length.",
+          knobs: [
+            { name: "VIEW BAR", min: 1, max: 4, val: 1, unit: "", fmt: v => `BAR ${v}`, desc: "Selects which 16-step page (BAR 1..4) is shown on the OLED and white keys." },
+            { name: "DRM LOOP", min: 0, max: 4, val: 0, unit: "", fmt: v => ["1 BAR","2 BAR","3 BAR","4 BAR","SYNC SEQ"][v], desc: "Drum pattern length (1–4 bars independent, or locked to REC BARS)." },
+            { name: "REC BARS", min: 1, max: 16, val: 1, unit: "", fmt: v => `${v} BAR`, desc: "Synth loop recording length (1 to 16 bars)." },
+            { name: "REC SYNC", min: 0, max: 1, val: 1, unit: "", fmt: v => v?"QUANT":"FREE", desc: "Quantizes synth loop recording to 16th/bar timing or free unquantized." }
           ]
         }
       ]
@@ -929,58 +955,47 @@
     GLO: {
       subs: [
         {
-          title: "SCALE & CHORD (1/5)",
-          sub: "12 musical scales, root note, master tempo & one-finger chords",
-          note: "Scale lock snaps keyboard input cleanly to musical intervals.",
+          title: "SCALE & TEMPO (1/4)",
+          sub: "12 musical scales, root note, one-finger chords & master tempo",
+          note: "CHORD sits on K3 and Master TEMPO (40–240 BPM) sits on K4, keeping tempo separated from scale browsing with zero duplicate BPM knobs elsewhere.",
           knobs: [
             { name: "ROOT", min: 0, max: 11, val: 0, unit: "", fmt: v => ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][v], desc: "Root key for Scale Lock and Chord trigger." },
-            { name: "SCALE", min: 0, max: 11, val: 0, unit: "", fmt: v => ["CHROM","MAJOR","MINOR","DORIAN","PHRYG","LYDIAN","MIXOL","HARM","PENT+","PENT-","BLUES","WHL"][v], desc: "12 quantized musical scales." },
-            { name: "TEMPO", min: 40, max: 240, val: 120, unit: "BPM", fmt: v => `${v} BPM`, desc: "Master sequencer, arpeggiator, and delay clock (40–240 BPM)." },
-            { name: "CHORD", min: 0, max: 5, val: 0, unit: "", fmt: v => ["OFF","MAJ","MIN","7TH","SUS4","PWR5"][v], desc: "One-key chord generator mode." }
+            { name: "SCALE", min: 0, max: 11, val: 0, unit: "", fmt: v => ["CHROM","MAJOR","NAT MIN","HARM MIN","MEL MIN","DORIAN","PHRYG","LYDIAN","MIXOL","LOCRIAN","MAJ PNT","MIN PNT"][v], desc: "12 quantized musical scales." },
+            { name: "CHORD", min: 0, max: 4, val: 0, unit: "", fmt: v => ["OFF","OCTAVE","FIFTH","MIN 7","MAJ 7"][v], desc: "One-key chord generator mode." },
+            { name: "TEMPO", min: 40, max: 240, val: 120, unit: "BPM", fmt: v => `${v} BPM`, desc: "Master sequencer, arpeggiator, and delay clock (40–240 BPM)." }
           ]
         },
         {
-          title: "VOICE & SYSTEM (2/5)",
-          sub: "Loop recording length, sync, polyphony & swing",
-          note: "Synth looper records up to 16 bars with quantized loop playback and key LEDs.",
+          title: "UI & VOICE (2/4)",
+          sub: "OLED theme palette, Starfish mascot color & voice polyphony",
+          note: "Octave transposition stays exclusively on the dedicated OCT- and OCT+ panel buttons.",
           knobs: [
-            { name: "REC BARS", min: 1, max: 16, val: 2, unit: "", fmt: v => `${v} BAR`, desc: "Synth loop length (1 to 16 bars)." },
-            { name: "REC SYNC", min: 0, max: 1, val: 1, unit: "", fmt: v => v?"SYNC":"FREE", desc: "Quantize recording start to bar boundary." },
+            { name: "THEME", min: 0, max: 4, val: 2, unit: "", fmt: v => ["EMERALD","AMBER","CYAN","CRIMSON","MONO"][v], desc: "Switches OLED accent color theme." },
+            { name: "STARFISH", min: 0, max: 5, val: 0, unit: "", fmt: v => ["CORAL","LAGOON","SUNBURST","NEBULA","REEF","TANGERIN"][v], desc: "Selects top-right Starfish mascot palette." },
             { name: "POLY", min: 1, max: 8, val: 8, unit: "v", fmt: v => `${v}V`, desc: "Voice polyphony allocation (1 mono up to 8 voices)." },
-            { name: "SWING", min: 50, max: 75, val: 52, unit: "%", fmt: v => `${v}%`, desc: "Shuffle timing applied to sequencer & arp 16th offbeats." }
+            { name: "--", min: 0, max: 1, val: 0, unit: "", disabled: true, fmt: () => "UNUSED", desc: "Unassigned slot." }
           ]
         },
         {
-          title: "COLOR & UI (3/5)",
-          sub: "OLED theme palette, mascot, octave & bar settings",
-          note: "Mascot subtly bounces to BPM, blinks on transients, and squints when resonance/drive peaks.",
-          knobs: [
-            { name: "OLED THEME", min: 0, max: 4, val: 0, unit: "", fmt: v => ["CYAN","AMBER","EMERALD","CORAL","MONO"][v], desc: "Switches OLED accent color theme." },
-            { name: "STARFISH", min: 0, max: 5, val: 0, unit: "", fmt: v => ["CORAL","GOLD","MINT","VIOLET","ICE","DISCO"][v], desc: "Selects top-right Starfish mascot palette." },
-            { name: "OCTAVE", min: -2, max: 2, val: 0, unit: "", fmt: v => `${v>=0?"+":""}${v}`, desc: "Master keyboard octave transposition." },
-            { name: "DRM BARS", min: 1, max: 4, val: 1, unit: "", fmt: v => `${v} BAR`, desc: "Drum pattern bar length (1–4 bars)." }
-          ]
-        },
-        {
-          title: "RANDOMIZER (4/5)",
+          title: "RANDOMIZER (3/4)",
           sub: "Styled patch generator with Bank X safe commit",
           note: "Randomizing asks to SAVE or DISCARD before overwriting unsaved changes.",
           knobs: [
-            { name: "STYLE", min: 0, max: 4, val: 0, unit: "", fmt: v => ["LEAD","BASS","PAD","PLUCK","ARP"][v], desc: "Musical archetype for generated patches." },
-            { name: "GENERATE", min: 0, max: 1, val: 0, unit: "", fmt: () => "TURN K2", desc: "Turn K2 to roll a fresh patch matching the chosen style." },
-            { name: "CHAOS", min: 0, max: 100, val: 45, unit: "%", fmt: v => `${v}%`, desc: "Randomization variance intensity." },
-            { name: "SAVE -> X", min: 0, max: 127, val: 0, unit: "", fmt: v => `X${String(v).padStart(3,"0")}`, desc: "Target Bank X destination slot." }
+            { name: "STYLE", min: 0, max: 7, val: 0, unit: "", fmt: v => ["ALL","PAD","LEAD","BASS","PLUCK","ARP","KEYS","FX"][v], desc: "Musical archetype for generated patches." },
+            { name: "RANDOMIZE", min: 0, max: 1, val: 0, unit: "", fmt: () => "TURN!", desc: "Turn K2 to roll a fresh patch matching the chosen style." },
+            { name: "CHAOS", min: 20, max: 100, val: 60, unit: "%", fmt: v => `${v}%`, desc: "Randomization variance intensity (20%–100%)." },
+            { name: "BANK X SLOT", min: 0, max: 127, val: 0, unit: "", fmt: v => `X${String(v).padStart(3,"0")}`, desc: "Target Bank X destination slot." }
           ]
         },
         {
-          title: "MIDI & BT I/O (5/5)",
-          sub: "Synth/Drum MIDI channels, Bluetooth MIDI & independent SPK/HP level",
-          note: "USB Audio always sends full 44.1 kHz studio level even when SPK/HP is muted (OFF).",
+          title: "MIDI & BT I/O (4/4)",
+          sub: "Synth/Drum MIDI channels, Bluetooth MIDI & speaker/headphone output level",
+          note: "USB Audio always sends full 44.1 kHz studio level independently of analog SPK/HP gain.",
           knobs: [
-            { name: "SYNTH CH", min: 1, max: 16, val: 1, unit: "", fmt: v => `CH ${v}`, desc: "MIDI channel for Synth engine." },
-            { name: "DRUM CH", min: 1, max: 16, val: 10, unit: "", fmt: v => `CH ${v}`, desc: "MIDI channel for 8-voice Drum engine." },
-            { name: "BT MIDI", min: 0, max: 2, val: 2, unit: "", fmt: v => ["OFF","KYBD","PC+KYBD"][v], desc: "Bluetooth MIDI role (Off, External Keyboard, or Computer + Keyboard)." },
-            { name: "SPK / HP", min: 0, max: 4, val: 2, unit: "", fmt: v => ["OFF","QUIET","NORM","+3dB","+6dB"][v], desc: "Hardware speaker & headphone gain (independent of USB audio)." }
+            { name: "SYNTH CH", min: 0, max: 16, val: 1, unit: "", fmt: v => v === 0 ? "OMNI" : `CH ${v}`, desc: "MIDI channel for Synth engine (OMNI or 1–16)." },
+            { name: "DRUM CH", min: 0, max: 16, val: 10, unit: "", fmt: v => v === 0 ? "OFF" : `CH ${v}`, desc: "MIDI channel for 8-voice Drum engine (OFF or 1–16)." },
+            { name: "BT MIDI", min: 0, max: 3, val: 0, unit: "", fmt: v => ["PC+KYBD","KYBD HST","PC DEV","OFF"][v], desc: "Bluetooth MIDI role or radio Off." },
+            { name: "OUT LEVEL", min: 0, max: 2, val: 0, unit: "", fmt: v => ["AUTO 0dB","LINE -6dB","BOOST +3dB"][v], desc: "Hardware speaker & headphone gain (independent of USB audio)." }
           ]
         }
       ]
@@ -991,7 +1006,7 @@
   let curSub = 0;
   let oledOverlay = null; // null | "boot" | "about"
 
-  const pageOrder = ["HOME", "FX", "SEL", "ENV", "LFO", "EDIT", "ARP", "GLO"];
+  const pageOrder = ["HOME", "FX", "SEL", "ENV", "LFO", "EDIT", "ARP", "SEQ", "GLO"];
   const pageBtnsEl = document.getElementById("pageButtons");
   const knobCtrlsEl = document.getElementById("knobControls");
   const subIndEl = document.getElementById("subIndicator");
@@ -1035,11 +1050,12 @@
     knobCtrlsEl.replaceChildren(...spec.knobs.map((k, idx) => {
       const card = document.createElement("div");
       card.className = "knob-card";
+      if (k.disabled) card.style.opacity = "0.45";
       const top = document.createElement("div");
       top.className = "knob-top";
       const nm = document.createElement("span");
       nm.className = "knob-name mono";
-      nm.textContent = `K${idx + 1} ${k.name}`;
+      nm.textContent = k.disabled ? `K${idx + 1} --` : `K${idx + 1} ${k.name}`;
       const vl = document.createElement("span");
       vl.className = "knob-val mono";
       vl.textContent = k.fmt(k.val);
@@ -1049,7 +1065,9 @@
       rng.type = "range";
       rng.min = String(k.min);
       rng.max = String(k.max);
+      if (k.step) rng.step = String(k.step);
       rng.value = String(k.val);
+      rng.disabled = Boolean(k.disabled);
       rng.setAttribute("aria-label", `K${idx + 1} ${k.name}`);
       rng.addEventListener("input", () => {
         oledOverlay = null;
@@ -1113,13 +1131,14 @@
     inspSubEl.textContent = spec.sub;
     inspKnobsEl.replaceChildren(...spec.knobs.map((k, idx) => {
       const li = document.createElement("li");
+      if (k.disabled) li.style.opacity = "0.5";
       const hd = document.createElement("div");
       hd.className = "kd-head";
       const l = document.createElement("span");
       l.textContent = `K${idx + 1} · ${k.name}`;
       const r = document.createElement("span");
       r.className = "mono";
-      r.style.color = "var(--cyan)";
+      r.style.color = k.disabled ? "var(--muted)" : "var(--cyan)";
       r.textContent = k.fmt(k.val);
       hd.append(l, r);
       const p = document.createElement("p");
@@ -1426,8 +1445,8 @@
       });
       ctx.textAlign = "left";
     } else if (curPage === "SEL" || (curPage === "HOME" && curSub === 0)) {
-      const c1 = (ks[0].val - ks[0].min) / (ks[0].max - ks[0].min);
-      const res = curPage === "HOME" ? ks[1].val / 127 : 0.35;
+      const c1 = curPage === "HOME" ? (ks[0].val - ks[0].min) / (ks[0].max - ks[0].min) : 0.52;
+      const res = curPage === "HOME" ? ks[1].val / 127 : (curSub === 0 ? ks[3].val / 127 : 0.35);
       ctx.strokeStyle = "#22d3ee";
       ctx.lineWidth = 2.2;
       ctx.beginPath();
@@ -1456,7 +1475,7 @@
         let w = Math.sin(ph);
         if (sh === 1) w = (2 / Math.PI) * Math.asin(Math.sin(ph));
         else if (sh === 2) w = 2 * ((ph / (2 * Math.PI)) % 1) - 1;
-        else if (sh === 3) w = Math.sin(Math.floor(ph * 1.3) * 19.7);
+        else if (sh === 3) w = (w >= 0 ? 1 : -1);
         const y = 124 - w * 22 * dp;
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
@@ -1464,6 +1483,7 @@
     } else {
       // Clean 4-meter stage summary
       ks.forEach((k, i) => {
+        if (k.disabled) return;
         const norm = Math.max(0, Math.min(1, (k.val - k.min) / Math.max(1, k.max - k.min)));
         const y = 94 + i * 16;
         ctx.fillStyle = "#94a3b8"; ctx.font = "700 9px monospace";
@@ -1481,12 +1501,12 @@
     ks.forEach((k, i) => {
       const col = i % 2, row = Math.floor(i / 2);
       const x = 8 + col * 114, y = 166 + row * 34;
-      ctx.fillStyle = "#121824";
+      ctx.fillStyle = k.disabled ? "#0b0f18" : "#121824";
       ctx.fillRect(x, y, 108, 30);
-      ctx.fillStyle = "#94a3b8";
+      ctx.fillStyle = k.disabled ? "#475569" : "#94a3b8";
       ctx.font = "700 8.5px monospace";
       ctx.fillText(k.name, x + 6, y + 11);
-      ctx.fillStyle = "#f8fafc";
+      ctx.fillStyle = k.disabled ? "#475569" : "#f8fafc";
       ctx.font = "800 10px monospace";
       ctx.textAlign = "right";
       ctx.fillText(k.fmt(k.val), x + 102, y + 23);
@@ -1518,6 +1538,7 @@
     const rows = [];
     PAGES[activeRefTab].subs.forEach(s => {
       s.knobs.forEach((k, idx) => {
+        if (k.disabled) return;
         const tr = document.createElement("tr");
         const c1 = document.createElement("td"); c1.className = "mono"; c1.textContent = `${s.title.split("(")[0].trim()} · K${idx+1}`;
         const c2 = document.createElement("td"); c2.style.fontWeight = "600"; c2.textContent = k.name;
