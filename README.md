@@ -13,7 +13,7 @@ STARFISH transforms the **M-VAVE FM-1** into a portable synthesizer and groovebo
 
 | Resource | Description |
 |:---|:---|
-| 🌐 **[Emulator](https://grandsummoner.github.io/starfish/emu/)** | Install STARFISH firmware over USB-MIDI, restore stock firmware and inspect device crash reports. |
+| 🌐 **[Emulator](https://grandsummoner.github.io/starfish/emu/)** | Experience it over a web emulator. |
 | 🌐 **[Installer](https://grandsummoner.github.io/starfish/)** | Install STARFISH firmware over USB-MIDI, restore stock firmware and inspect device crash reports. |
 | 📖 **[User Guide](https://grandsummoner.github.io/starfish/guide.html)** | Explore hardware controls, OLED simulations, the drum sequencer, all 288 presets and MIDI routing. |
 
