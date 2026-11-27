@@ -3,7 +3,7 @@
 #include "dsp.h"
 #include "presets_rom.h"
 
-#define SET_MAGIC      0x53545334u
+#define SET_MAGIC      0x53545336u
 #define BANKX_MAGIC    0x53545832u
 #define SYNTH_LOOP_MAX 256u
 #define BOOT_SPLASH_MS 3400u
@@ -52,7 +52,7 @@ typedef struct {
     uint8_t bank;                       /* 0..7=A..H, 8=I, 9=X */
     uint8_t prog;                       /* 0..127 */
     int8_t octave;                      /* -2..+2 */
-    uint8_t palette;                    /* 0..4 */
+    uint8_t palette;                    /* 0..7: MONOLITH..RANDOM */
     uint8_t ble_off;                    /* 0..1 */
     uint16_t bpm;                       /* 40..240 */
     uint8_t swing;                      /* 50..75 (%) */
@@ -63,7 +63,7 @@ typedef struct {
     uint8_t duck_amt;                   /* 0..100 */
     uint8_t duck_src;                   /* 0..7 drum voice index */
     uint8_t drum_bus;                   /* 0..5 */
-    uint8_t drum_preset;                /* 0=TECHNO,1=HOUSE,2=ELECTRO,3=BREAK,4=CLEAR */
+    uint8_t drum_preset;                /* 0..11=presets, 12=CLEAR/CUSTOM */
     uint8_t midi_synth_ch;              /* 0=OMNI, 1..16 */
     uint8_t midi_drum_ch;               /* 0=OFF, 1..16 */
     uint8_t bt_mode;                    /* 0=PC+KYBD, 1=KYBD HOST, 2=PC DEVICE, 3=OFF */
@@ -80,7 +80,9 @@ typedef struct {
     uint8_t arp_accent;                 /* 0..100 */
     uint8_t rand_chaos;                 /* 20..100 */
     uint8_t rand_style;                 /* 0..7 */
-    uint8_t mascot_idx;                 /* 0..5 */
+    uint8_t voice_mode;                 /* 0=POLY, 1=MONO, 2=LEGATO */
+    uint8_t at_dest;                    /* 0=CUTOFF, 1=VIBRATO, 2=RESO, 3=DRIVE, 4=AMP, 5=OFF */
+    uint32_t theme_seed;                /* Seed for RANDOM generative theme */
     uint8_t seq_pat[SF_DRUM_VOICES][SF_SEQ_STEPS];
     uint8_t drum_mute;
     int8_t drum_tune[SF_DRUM_VOICES];   /* -12..+12 */
@@ -197,10 +199,19 @@ static const char *const LFO_NAMES[SF_NLFO_DEST] = {
     "FLT1 CUTOFF", "FLT2 CUTOFF", "RESONANCE", "PITCH", "PANNING", "SPREAD", "AMP LEVEL", "CHORUS", "PHASER", "DELAY", "REVERB"
 };
 static const char *const LFO_SHAPES[4] = {"SINE", "TRIANGLE", "SAWTOOTH", "SQUARE"};
-static const char *const PALETTE_NAMES[5] = {"EMERALD", "AMBER", "CYAN", "CRIMSON", "MONO"};
-static const char *const MASCOT_COLOR_NAMES[6] = {"CORAL", "LAGOON", "SUNBURST", "NEBULA", "REEF", "TANGERIN"};
+static const char *const THEME_NAMES[8] = {
+    "MONOLITH", "ABYSSAL", "EMERALD", "SOLARIS", "CORALTID", "VAPOR", "PRISM", "RANDOM"
+};
+static const char *const THEME_SHORT[8] = {
+    "MONO", "ABYS", "EMRL", "SOLR", "CORL", "VAPR", "PRSM", "RND*"
+};
+static const char *const VOICE_MODE_NAMES[3] = {"POLY", "MONO", "LEGATO"};
+static const char *const AT_DEST_NAMES[6] = {"CUTOFF", "VIBRATO", "RESO", "DRIVE", "AMP", "OFF"};
 static const char *const DRUM_LOOP_NAMES[5] = {"1 BAR (16)", "2 BAR (32)", "3 BAR (48)", "4 BAR (64)", "SYNC SEQ"};
-static const char *const DRUM_PAT_NAMES[5] = {"TECHNO", "HOUSE", "ELECTRO", "BREAK", "CUSTOM"};
+static const char *const DRUM_PAT_NAMES[13] = {
+    "TECHNO", "HOUSE", "ELECTRO", "BREAK", "ACID", "TRAP",
+    "DNB", "DUBSTEP", "SYNTHWAV", "AFROBEAT", "MINIMAL", "GARAGE", "CUSTOM"
+};
 static const char *const SCALE_NAMES[SF_NSCALE] = {
     "CHROMATIC", "MAJOR", "NAT MINOR", "HARM MIN", "MEL MIN", "DORIAN",
     "PHRYGIAN", "LYDIAN", "MIXOLYDIAN", "LOCRIAN", "MAJ PENT", "MIN PENT"
@@ -257,6 +268,15 @@ static const sf_star_pal_t STAR_PALS[6] = {
     {RGB(167, 139, 250), RGB(196, 181, 253), RGB(139, 92, 246)}, /* Nebula Violet */
     {RGB(52, 211, 153),  RGB(110, 231, 183), RGB(16, 185, 129)}, /* Reef Emerald */
     {RGB(251, 146, 60),  RGB(253, 186, 116), RGB(234, 88, 12)},  /* Tangerine */
+};
+
+static const sf_star_pal_t THEME_STAR_PALS[6] = {
+    {RGB(203, 213, 225), RGB(241, 245, 249), RGB(148, 163, 184)}, /* 0 MONOLITH: Pearl Chalk */
+    {RGB(56, 189, 248),  RGB(186, 230, 253), RGB(2, 132, 199)},   /* 1 ABYSSAL: Lagoon Aqua */
+    {RGB(45, 212, 191),  RGB(153, 246, 228), RGB(13, 148, 136)},  /* 2 EMERALD: Reef Teal */
+    {RGB(245, 158, 11),  RGB(253, 230, 138), RGB(217, 119, 6)},   /* 3 SOLARIS: Sunburst Gold */
+    {RGB(255, 107, 139), RGB(255, 155, 178), RGB(255, 62, 108)},  /* 4 CORALTIDE: Coral Pink */
+    {RGB(232, 121, 249), RGB(245, 208, 254), RGB(192, 38, 211)},  /* 5 VAPOR: Neon Magenta */
 };
 
 static uint32_t xorshift32(void)
@@ -331,40 +351,140 @@ static void slot3_text(uint32_t n, char out[8])
     out[4] = 0;
 }
 
+static uint16_t hsv_to_rgb565(float h_deg, float s, float v)
+{
+    int32_t hi;
+    float f, p, q, t, r = 0.0f, g = 0.0f, b = 0.0f;
+    while (h_deg < 0.0f) h_deg += 360.0f;
+    while (h_deg >= 360.0f) h_deg -= 360.0f;
+    hi = (int32_t)(h_deg / 60.0f) % 6;
+    f = (h_deg / 60.0f) - (float)hi;
+    p = v * (1.0f - s);
+    q = v * (1.0f - f * s);
+    t = v * (1.0f - (1.0f - f) * s);
+    if (hi == 0) { r = v; g = t; b = p; }
+    else if (hi == 1) { r = q; g = v; b = p; }
+    else if (hi == 2) { r = p; g = v; b = t; }
+    else if (hi == 3) { r = p; g = q; b = v; }
+    else if (hi == 4) { r = t; g = p; b = v; }
+    else { r = v; g = p; b = q; }
+    return RGB((int32_t)(r * 255.0f), (int32_t)(g * 255.0f), (int32_t)(b * 255.0f));
+}
+
+static uint32_t theme_hash_seed(uint32_t s)
+{
+    uint32_t z = s ? s : 0x6D2B79F5u;
+    z ^= z >> 15;
+    z *= 0x85EBCA6Bu;
+    z ^= z >> 13;
+    z *= 0xC2B2AE35u;
+    z ^= z >> 16;
+    return z;
+}
+
+static float theme_hue_for(uint8_t idx, uint32_t seed, uint32_t now_ms, float *sat_out)
+{
+    uint32_t h = theme_hash_seed(seed);
+    if (idx == 6u) {
+        if (sat_out) *sat_out = 0.86f;
+        return (float)((now_ms * 45u / 1000u) % 360u);
+    }
+    if (idx == 7u) {
+        if (sat_out) *sat_out = 0.65f + (float)((h >> 9) & 63u) * (0.25f / 63.0f);
+        return (float)(h % 360u);
+    }
+    if (sat_out) *sat_out = (idx == 0u) ? 0.14f : 0.85f;
+    return 190.0f;
+}
+
 static uint16_t theme_accent(void)
 {
-    if (set.palette == 0u) return COL_GREEN;
-    if (set.palette == 1u) return COL_AMBER;
-    if (set.palette == 3u) return RGB(251, 113, 133);
-    if (set.palette == 4u) return RGB(226, 232, 240);
-    return COL_CYAN;
+    uint8_t p = set.palette % 8u;
+    if (p == 0u) return RGB(226, 232, 240);
+    if (p == 1u) return COL_CYAN;
+    if (p == 2u) return COL_GREEN;
+    if (p == 3u) return COL_AMBER;
+    if (p == 4u) return RGB(251, 113, 133);
+    if (p == 5u) return RGB(192, 132, 252);
+    {
+        float sat = 0.85f;
+        float hue = theme_hue_for(p, set.theme_seed, plat_ms(), &sat);
+        return hsv_to_rgb565(hue, sat, 0.96f);
+    }
 }
 
 static uint16_t theme_dim(void)
 {
-    if (set.palette == 0u) return COL_GRN_DIM;
-    if (set.palette == 1u) return COL_AMB_DIM;
-    if (set.palette == 3u) return RGB(82, 22, 40);
-    if (set.palette == 4u) return RGB(51, 65, 85);
-    return COL_CYAN_DIM;
+    uint8_t p = set.palette % 8u;
+    if (p == 0u) return RGB(51, 65, 85);
+    if (p == 1u) return COL_CYAN_DIM;
+    if (p == 2u) return COL_GRN_DIM;
+    if (p == 3u) return COL_AMB_DIM;
+    if (p == 4u) return RGB(82, 22, 40);
+    if (p == 5u) return RGB(59, 7, 100);
+    {
+        float sat = 0.85f;
+        float hue = theme_hue_for(p, set.theme_seed, plat_ms(), &sat);
+        return hsv_to_rgb565(hue, sat * 0.88f, 0.30f);
+    }
 }
 
 static uint16_t theme_glow(void)
 {
-    if (set.palette == 0u) return RGB(167, 243, 208);
-    if (set.palette == 1u) return RGB(254, 243, 199);
-    if (set.palette == 3u) return RGB(254, 205, 211);
-    if (set.palette == 4u) return C_WHITE;
-    return RGB(224, 242, 254);
+    uint8_t p = set.palette % 8u;
+    if (p == 0u) return C_WHITE;
+    if (p == 1u) return RGB(224, 242, 254);
+    if (p == 2u) return RGB(167, 243, 208);
+    if (p == 3u) return RGB(254, 243, 199);
+    if (p == 4u) return RGB(254, 205, 211);
+    if (p == 5u) return RGB(243, 232, 255);
+    {
+        float sat = 0.85f;
+        float hue = theme_hue_for(p, set.theme_seed, plat_ms(), &sat);
+        return hsv_to_rgb565(hue, sat * 0.34f, 1.0f);
+    }
 }
 
 static uint16_t theme_band(void)
 {
-    if (set.palette == 0u) return RGB(16, 110, 82);
-    if (set.palette == 1u) return RGB(138, 98, 22);
-    if (set.palette == 3u) return RGB(148, 44, 72);
-    if (set.palette == 4u) return RGB(100, 116, 139);
-    return RGB(24, 118, 138);
+    uint8_t p = set.palette % 8u;
+    if (p == 0u) return RGB(100, 116, 139);
+    if (p == 1u) return RGB(24, 118, 138);
+    if (p == 2u) return RGB(16, 110, 82);
+    if (p == 3u) return RGB(138, 98, 22);
+    if (p == 4u) return RGB(148, 44, 72);
+    if (p == 5u) return RGB(107, 33, 168);
+    {
+        float sat = 0.85f;
+        float hue = theme_hue_for(p, set.theme_seed, plat_ms(), &sat);
+        return hsv_to_rgb565(hue, sat * 0.85f, 0.56f);
+    }
+}
+
+static void active_theme_star_pal(uint32_t now_ms, sf_star_pal_t *out)
+{
+    uint8_t p = set.palette % 8u;
+    if (p < 6u) {
+        *out = THEME_STAR_PALS[p];
+        return;
+    }
+    if (p == 6u) {
+        float h = (float)(((now_ms * 45u / 1000u) + 150u) % 360u);
+        out->body = hsv_to_rgb565(h, 0.84f, 0.96f);
+        out->belly = hsv_to_rgb565(h + 10.0f, 0.45f, 1.0f);
+        out->cheek = hsv_to_rgb565(h - 16.0f, 0.92f, 0.82f);
+        return;
+    }
+    {
+        uint32_t h = theme_hash_seed(set.theme_seed);
+        float base_h = (float)(h % 360u);
+        static const float OFFSETS[3] = {155.0f, 210.0f, 48.0f};
+        float star_h = base_h + OFFSETS[(h >> 16) % 3u];
+        float sat = 0.72f + (float)((h >> 20) & 31u) * (0.20f / 31.0f);
+        out->body = hsv_to_rgb565(star_h, sat, 0.96f);
+        out->belly = hsv_to_rgb565(star_h + 8.0f, sat * 0.46f, 1.0f);
+        out->cheek = hsv_to_rgb565(star_h - 14.0f, sat, 0.80f);
+    }
 }
 
 static uint32_t eff_drum_loop_len(uint32_t seq_len)
@@ -437,6 +557,8 @@ static void sync_engine_cfg(void)
     eng.scale = set.scale;
     eng.root = set.root;
     eng.chord_mode = set.chord_mode;
+    eng.voice_mode = set.voice_mode;
+    eng.at_dest = set.at_dest;
     eng.arp_mode = set.arp_mode;
     eng.arp_rate = set.arp_rate;
     eng.arp_octs = set.arp_octs;
@@ -662,38 +784,43 @@ static void apply_euclidean(uint32_t track, uint32_t pulses, uint32_t rot)
 
 static void apply_drum_preset(uint8_t preset)
 {
+    static const uint16_t PAT_MASK[12][SF_DRUM_VOICES] = {
+        /* 0 TECHNO */   {0x1111u, 0x1010u, 0x4444u, 0x0400u, 0x1000u, 0x0000u, 0x0000u, 0x8080u},
+        /* 1 HOUSE */    {0x1111u, 0x4000u, 0x5555u, 0x4444u, 0x1010u, 0x0000u, 0x0000u, 0x0000u},
+        /* 2 ELECTRO */  {0x0441u, 0x1010u, 0x5555u, 0x0000u, 0x0000u, 0x4000u, 0x0000u, 0x0808u},
+        /* 3 BREAK */    {0x0409u, 0x1290u, 0x5555u, 0x4000u, 0x0000u, 0x0000u, 0x0000u, 0x0000u},
+        /* 4 ACID */     {0x1111u, 0x1010u, 0xBBDBu, 0x4444u, 0x9000u, 0x4080u, 0x0000u, 0x0808u},
+        /* 5 TRAP */     {0x4449u, 0x0100u, 0xF5F5u, 0x0404u, 0x0100u, 0x8000u, 0x0000u, 0x1010u},
+        /* 6 DNB */      {0x0401u, 0x1010u, 0x5555u, 0x4040u, 0x0000u, 0x8080u, 0x5555u, 0x0200u},
+        /* 7 DUBSTEP */  {0x0041u, 0x0100u, 0x5414u, 0x1010u, 0x0100u, 0x4000u, 0x0101u, 0x0808u},
+        /* 8 SYNTHWAV */ {0x1111u, 0x1010u, 0x5555u, 0x4000u, 0x1010u, 0xA800u, 0x1111u, 0x0000u},
+        /* 9 AFROBEAT */ {0x0441u, 0x1010u, 0x7777u, 0x0808u, 0x1000u, 0x4084u, 0x1111u, 0x1449u},
+        /* 10 MINIMAL */ {0x1111u, 0x0000u, 0x4444u, 0x4000u, 0x1000u, 0x0080u, 0x1010u, 0x8A22u},
+        /* 11 GARAGE */  {0x0409u, 0x1010u, 0x4D4Du, 0x0404u, 0x1010u, 0x4080u, 0x0000u, 0xA020u}
+    };
     uint32_t t, s;
-    set.drum_preset = preset % 5u;
+    set.drum_preset = preset % 13u;
     mem_zero(set.seq_pat, (uint32_t)sizeof(set.seq_pat));
     mem_zero(set.euclid_pulses, (uint32_t)sizeof(set.euclid_pulses));
     mem_zero(set.euclid_rot, (uint32_t)sizeof(set.euclid_rot));
-    if (set.drum_preset == 4u) { sync_engine_cfg(); return; }
-    for (s = 0; s < SF_SEQ_STEPS; s++) {
-        uint32_t st = s & 15u;
-        if (set.drum_preset == 0u) { /* TECHNO */
-            if ((st & 3u) == 0u) set.seq_pat[0][s] = (st == 0u) ? 2u : 1u;
-            if (st == 4u || st == 12u) set.seq_pat[1][s] = 2u;
-            if ((st & 3u) == 2u) set.seq_pat[2][s] = 1u;
-            if (st == 10u) set.seq_pat[3][s] = 1u;
-            if (st == 12u) set.seq_pat[4][s] = 1u;
-            if (st == 7u || st == 15u) set.seq_pat[7][s] = 1u;
-        } else if (set.drum_preset == 1u) { /* HOUSE */
-            if ((st & 3u) == 0u) set.seq_pat[0][s] = (st == 0u || st == 8u) ? 2u : 1u;
-            if (st == 4u || st == 12u) set.seq_pat[4][s] = 2u;
-            if ((st & 3u) == 2u) set.seq_pat[3][s] = 2u;
-            if ((st & 1u) == 0u) set.seq_pat[2][s] = 1u;
-            if (st == 14u) set.seq_pat[1][s] = 1u;
-        } else if (set.drum_preset == 2u) { /* ELECTRO */
-            if (st == 0u || st == 6u || st == 10u) set.seq_pat[0][s] = 2u;
-            if (st == 4u || st == 12u) set.seq_pat[1][s] = 2u;
-            if ((st & 1u) == 0u) set.seq_pat[2][s] = 1u;
-            if (st == 3u || st == 11u) set.seq_pat[7][s] = 1u;
-            if (st == 14u) set.seq_pat[5][s] = 1u;
-        } else { /* BREAK */
-            if (st == 0u || st == 3u || st == 10u) set.seq_pat[0][s] = 2u;
-            if (st == 4u || st == 7u || st == 9u || st == 12u) set.seq_pat[1][s] = (st == 4u || st == 12u) ? 2u : 1u;
-            if ((st & 1u) == 0u) set.seq_pat[2][s] = 1u;
-            if (st == 14u) set.seq_pat[3][s] = 1u;
+    if (set.drum_preset == 12u) { sync_engine_cfg(); return; }
+    for (t = 0; t < SF_DRUM_VOICES; t++) {
+        uint16_t mask = PAT_MASK[set.drum_preset][t];
+        for (s = 0; s < SF_SEQ_STEPS; s++) {
+            uint32_t st = s & 15u;
+            if ((mask >> st) & 1u) {
+                uint8_t acc = 1u;
+                if (t == 0u && (st == 0u || ((set.drum_preset == 1u || set.drum_preset == 4u) && st == 8u) ||
+                                ((set.drum_preset == 2u || set.drum_preset == 3u || set.drum_preset == 6u || set.drum_preset == 11u) && st == 10u) ||
+                                (set.drum_preset == 5u && st == 6u))) {
+                    acc = 2u;
+                } else if ((t == 1u || t == 4u) && (st == 4u || st == 8u || st == 12u)) {
+                    acc = 2u;
+                } else if (t == 3u && set.drum_preset == 1u) {
+                    acc = 2u;
+                }
+                set.seq_pat[t][s] = acc;
+            }
         }
     }
     for (t = 0; t < SF_DRUM_VOICES; t++) {
@@ -717,7 +844,7 @@ static void default_drums(void)
         set.drum_level[t] = DEF_LVL[t];
     }
     set.drum_mute = 0u;
-    apply_drum_preset(4u);
+    apply_drum_preset(12u);
 }
 
 static void settings_defaults(void)
@@ -727,7 +854,10 @@ static void settings_defaults(void)
     set.bank = 8u; /* Bank I: STARFISH ORIGINALS */
     set.prog = 0u; /* Star Phaser Pad */
     set.octave = 0;
-    set.palette = 2u; /* Cyan */
+    set.palette = 1u; /* Abyssal Cyan */
+    set.voice_mode = 0u; /* POLY */
+    set.at_dest = 0u; /* CUTOFF */
+    set.theme_seed = 0x53544631u;
     set.bpm = 122u;
     set.swing = 50u;
     set.seq_length = 16u;
@@ -782,7 +912,10 @@ static void load_all_from_store(int allow_ble_start)
         if (set.bank >= 10u) set.bank = 8u;
         set.prog = (uint8_t)(set.prog % bank_len(set.bank));
         set.octave = (int8_t)clamp(set.octave, -2, 2);
-        if (set.palette > 4u) set.palette = 2u;
+        if (set.palette > 7u) set.palette = 1u;
+        if (set.voice_mode > 2u) set.voice_mode = 0u;
+        if (set.at_dest > 5u) set.at_dest = 0u;
+        if (set.theme_seed == 0u) set.theme_seed = 0x53544631u;
         if (set.bpm < 40u || set.bpm > 240u) set.bpm = 122u;
         if (set.swing < 50u || set.swing > 75u) set.swing = 50u;
         if (set.seq_length < 1u || set.seq_length > SF_SYNTH_MAX_STEPS) set.seq_length = 16u;
@@ -808,7 +941,7 @@ static void load_all_from_store(int allow_ble_start)
         if (set.arp_accent > 100u) set.arp_accent = 35u;
         if (set.rand_chaos < 20u || set.rand_chaos > 100u) set.rand_chaos = 55u;
         if (set.rand_style >= SF_NRAND_STYLE) set.rand_style = 0u;
-        if (set.drum_preset > 4u) set.drum_preset = 4u;
+        if (set.drum_preset > 12u) set.drum_preset = 12u;
         if (set.drum_loop_bars > 4u) set.drum_loop_bars = 0u;
         set.rec_quant = set.rec_quant ? 1u : 0u;
         for (i = 0; i < 6u; i++) {
@@ -1173,6 +1306,8 @@ static void midi_in(uint32_t pkt, int port)
         for (i = 0; i < cnt; i++) sf_dsp_note_off((uint8_t)clamp((int32_t)q + ivs[i], 12, 119));
     } else if (type == 0xA0u) {
         sf_dsp_aftertouch(quantize_note((int32_t)d1), d2);
+    } else if (type == 0xD0u) {
+        sf_dsp_channel_aftertouch(d1 & 127u);
     } else if (type == 0xB0u) {
         if (d1 == 1u) { sf_dsp_set_mod_wheel(d2 & 127u); }
         else if (d1 == 74u) { set.patch.f1_cut = d2 & 127u; set_dirty = 1u; sync_patch_cfg(); }
@@ -1858,7 +1993,7 @@ static void execute_confirm_action(uint32_t now)
             stop_loop_playback();
         }
         if (tgt == 1u || tgt == 2u) {
-            apply_drum_preset(4u);
+            apply_drum_preset(12u);
             mark_drum_mix_dirty(now);
             ui.page = (tgt == 1u) ? PAGE_SEQ : PAGE_HOME;
         }
@@ -1954,7 +2089,7 @@ static void knob_label_val(uint8_t k, char lbl[16], char val[16], int32_t *pct)
             if (k == 0u) { text_copy(lbl, "FILTER 1", 16u); text_copy(val, FLT_NAMES[f1t], 16u); *pct = (int32_t)f1t * 33; }
             else if (k == 1u) { text_copy(lbl, "ROUTING", 16u); text_copy(val, ROUTE_NAMES[rt % 3u], 16u); *pct = (int32_t)(rt % 3u) * 50; }
             else if (k == 2u) { text_copy(lbl, "FILTER 2", 16u); text_copy(val, FLT_NAMES[f2t], 16u); *pct = (int32_t)f2t * 33; }
-            else { text_copy(lbl, "RESO 2", 16u); fmt_dec1(5u + ((uint32_t)p->f2_res * 175u) / 127u, "", val); *pct = ((int32_t)p->f2_res * 100) / 127; }
+            else { uint8_t fb = sf_f_bal(p); text_copy(lbl, "FLT BALANCE", 16u); int_text(fb, val); text_cat(val, "%"); *pct = fb; }
         }
     } else if (ui.page == PAGE_LFO) {
         if (sub == 2u) {
@@ -2029,7 +2164,7 @@ static void knob_label_val(uint8_t k, char lbl[16], char val[16], int32_t *pct)
             if (k == 0u) { text_copy(lbl, "EUC HITS", 16u); int_text(ep, val); text_cat(val, "/"); int_text((int32_t)dlen, lbuf); text_cat(val, lbuf); *pct = ((int32_t)ep * 100) / (int32_t)dlen; }
             else if (k == 1u) { text_copy(lbl, "ROTATE", 16u); text_copy(val, "+", 16u); int_text(er, val + 1); *pct = dlen > 1u ? ((int32_t)er * 100) / ((int32_t)dlen - 1) : 0; }
             else if (k == 2u) { text_copy(lbl, "SWING", 16u); int_text(set.swing, val); text_cat(val, "%"); *pct = ((int32_t)set.swing - 50) * 4; }
-            else { uint8_t dp = set.drum_preset % 5u; text_copy(lbl, "PATTERN", 16u); text_copy(val, DRUM_PAT_NAMES[dp], 16u); *pct = dp < 4u ? (int32_t)dp * 33 : 0; }
+            else { uint8_t dp = set.drum_preset % 13u; text_copy(lbl, "PATTERN", 16u); text_copy(val, DRUM_PAT_NAMES[dp], 16u); *pct = dp < 12u ? ((int32_t)dp * 100) / 11 : 0; }
         } else if (sub == 2u) {
             uint8_t bars = (uint8_t)((set.seq_length + 15u) / 16u);
             if (k == 0u) { uint8_t bar = ui.sel_step / 16u + 1u; uint8_t maxb = (uint8_t)((dlen + 15u) / 16u); text_copy(lbl, "VIEW BAR", 16u); text_copy(val, "BAR ", 16u); int_text(bar, val + 4); *pct = maxb > 1u ? ((int32_t)bar - 1) * 100 / ((int32_t)maxb - 1) : 0; }
@@ -2054,10 +2189,10 @@ static void knob_label_val(uint8_t k, char lbl[16], char val[16], int32_t *pct)
             else if (k == 2u) { text_copy(lbl, "CHAOS", 16u); int_text(set.rand_chaos, val); text_cat(val, "%"); *pct = ((int32_t)set.rand_chaos - 20) * 100 / 80; }
             else { text_copy(lbl, "BANK X", 16u); slot3_text(target_bankx_slot, val); if (bankx_is_used(target_bankx_slot)) text_cat(val, "*"); *pct = ((int32_t)target_bankx_slot * 100) / 127; }
         } else if (sub == 1u) {
-            if (k == 0u) { text_copy(lbl, "THEME", 16u); text_copy(val, PALETTE_NAMES[set.palette % 5u], 16u); *pct = ((int32_t)(set.palette % 5u) * 100) / 4; }
-            else if (k == 1u) { text_copy(lbl, "STARFISH", 16u); text_copy(val, MASCOT_COLOR_NAMES[set.mascot_idx % 6u], 16u); *pct = ((int32_t)(set.mascot_idx % 6u) * 100) / 5; }
+            if (k == 0u) { text_copy(lbl, "THEME", 16u); text_copy(val, THEME_NAMES[set.palette % 8u], 16u); *pct = ((int32_t)(set.palette % 8u) * 100) / 7; }
+            else if (k == 1u) { text_copy(lbl, "VOICE MODE", 16u); text_copy(val, VOICE_MODE_NAMES[set.voice_mode % 3u], 16u); *pct = ((int32_t)(set.voice_mode % 3u) * 100) / 2; }
             else if (k == 2u) { uint8_t pv = sf_polyphony(p); text_copy(lbl, "POLY", 16u); int_text(pv, val); text_cat(val, "V"); *pct = ((int32_t)pv - 1) * 100 / 7; }
-            else { text_copy(lbl, "--", 16u); text_copy(val, "UNUSED", 16u); *pct = 0; }
+            else { text_copy(lbl, "AT DEST", 16u); text_copy(val, AT_DEST_NAMES[set.at_dest % 6u], 16u); *pct = ((int32_t)(set.at_dest % 6u) * 100) / 5; }
         } else {
             if (k == 0u) { text_copy(lbl, "ROOT", 16u); text_copy(val, NOTE12[set.root % 12u], 16u); *pct = ((int32_t)set.root * 100) / 11; }
             else if (k == 1u) { text_copy(lbl, "SCALE", 16u); text_copy(val, SCALE_NAMES[set.scale % SF_NSCALE], 16u); *pct = ((int32_t)set.scale * 100) / 11; }
@@ -2103,7 +2238,7 @@ static void knob_label_val(uint8_t k, char lbl[16], char val[16], int32_t *pct)
         if (k == 0u) { text_copy(lbl, "CUTOFF 1", 16u); fmt_hz_0_127(p->f1_cut, val); *pct = ((int32_t)p->f1_cut * 100) / 127; }
         else if (k == 1u) { text_copy(lbl, "RESO 1", 16u); fmt_dec1(5u + ((uint32_t)p->f1_res * 175u) / 127u, "", val); *pct = ((int32_t)p->f1_res * 100) / 127; }
         else if (k == 2u) { text_copy(lbl, "CUTOFF 2", 16u); fmt_hz_0_127(p->f2_cut, val); *pct = ((int32_t)p->f2_cut * 100) / 127; }
-        else { uint8_t fb = sf_f_bal(p); text_copy(lbl, "FLT BALANCE", 16u); int_text(fb, val); text_cat(val, "%"); *pct = fb; }
+        else { text_copy(lbl, "RESO 2", 16u); fmt_dec1(5u + ((uint32_t)p->f2_res * 175u) / 127u, "", val); *pct = ((int32_t)p->f2_res * 100) / 127; }
     }
 }
 
@@ -2170,7 +2305,7 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
             if (k == 0u) { uint8_t ft = (uint8_t)((sf_f1_type(p) + (d > 0 ? 1u : 3u)) & 3u); p->f2_type_route = (p->f2_type_route & ~3u) | ft; }
             else if (k == 1u) { uint8_t rt = (uint8_t)(((int32_t)sf_f_route(p) + (d > 0 ? 1 : 2)) % 3); p->f2_type_route = (p->f2_type_route & ~0x30u) | (rt << 4); }
             else if (k == 2u) { uint8_t ft = (uint8_t)((sf_f2_type(p) + (d > 0 ? 1u : 3u)) & 3u); p->f2_type_route = (p->f2_type_route & ~0x0Cu) | (ft << 2); }
-            else p->f2_res = (uint8_t)clamp((int32_t)p->f2_res + d * 4, 0, 127);
+            else sf_set_f_bal(p, (uint8_t)clamp((int32_t)sf_f_bal(p) + d * 4, 0, 100));
         }
     } else if (ui.page == PAGE_LFO) {
         if (sub == 2u) {
@@ -2232,7 +2367,7 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
             else if (k == 1u) apply_euclidean(tr, set.euclid_pulses[tr], (uint32_t)(((int32_t)set.euclid_rot[tr] + d + (int32_t)dlen) % (int32_t)dlen));
             else if (k == 2u) set.swing = (uint8_t)clamp((int32_t)set.swing + d, 50, 75);
             else {
-                uint8_t np = (set.drum_preset >= 4u) ? 0u : (uint8_t)(((int32_t)set.drum_preset + (d > 0 ? 1 : 3)) % 4);
+                uint8_t np = (set.drum_preset >= 12u) ? (d > 0 ? 0u : 11u) : (uint8_t)(((int32_t)set.drum_preset + (d > 0 ? 1 : 11)) % 12);
                 apply_drum_preset(np);
             }
         } else if (sub == 2u) {
@@ -2273,10 +2408,18 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
             else if (k == 2u) set.rand_chaos = (uint8_t)clamp((int32_t)set.rand_chaos + d * 5, 20, 100);
             else target_bankx_slot = (uint8_t)(((int32_t)target_bankx_slot + d + (int32_t)SF_BANK_X_SLOTS) % (int32_t)SF_BANK_X_SLOTS);
         } else if (sub == 1u) {
-            if (k == 0u) { set.palette = (uint8_t)(((int32_t)set.palette + (d > 0 ? 1 : 4)) % 5); mark_drum_mix_dirty(now); }
-            else if (k == 1u) { set.mascot_idx = (uint8_t)(((int32_t)set.mascot_idx + (d > 0 ? 1 : 5)) % 6); mark_drum_mix_dirty(now); }
+            if (k == 0u) {
+                set.palette = (uint8_t)(((int32_t)set.palette + (d > 0 ? 1 : 7)) % 8);
+                if (set.palette == 7u) set.theme_seed = xorshift32() | 1u;
+                mark_drum_mix_dirty(now);
+            }
+            else if (k == 1u) {
+                set.voice_mode = (uint8_t)(((int32_t)set.voice_mode + (d > 0 ? 1 : 2)) % 3);
+                sf_dsp_all_notes_off();
+                mark_drum_mix_dirty(now);
+            }
             else if (k == 2u) { uint8_t pv = (uint8_t)clamp((int32_t)sf_polyphony(p) + (d > 0 ? 1 : -1), 1, 8); p->unison_poly = (p->unison_poly & ~0x38u) | ((pv - 1u) << 3); }
-            else return;
+            else { set.at_dest = (uint8_t)(((int32_t)set.at_dest + (d > 0 ? 1 : 5)) % 6); }
         } else {
             if (k == 0u) set.root = (uint8_t)(((int32_t)set.root + d + 12) % 12);
             else if (k == 1u) set.scale = (uint8_t)(((int32_t)set.scale + d + (int32_t)SF_NSCALE) % (int32_t)SF_NSCALE);
@@ -2301,7 +2444,7 @@ static void handle_knob(uint32_t now, uint8_t k, int32_t d)
         if (k == 0u) p->f1_cut = (uint8_t)clamp((int32_t)p->f1_cut + d * 3, 0, 127);
         else if (k == 1u) p->f1_res = (uint8_t)clamp((int32_t)p->f1_res + d * 4, 0, 127);
         else if (k == 2u) p->f2_cut = (uint8_t)clamp((int32_t)p->f2_cut + d * 3, 0, 127);
-        else sf_set_f_bal(p, (uint8_t)clamp((int32_t)sf_f_bal(p) + d * 4, 0, 100));
+        else p->f2_res = (uint8_t)clamp((int32_t)p->f2_res + d * 4, 0, 127);
     }
 
     if ((ui.page == PAGE_HOME && sub == 0u) ||
@@ -3114,11 +3257,11 @@ enum {
     STAR_OPT_DRUMMER = 1u << 5
 };
 
-static void draw_organic_star(float cx, float cy, float radius, float angle_rad,
-                              float sx, float sy, uint8_t pal_idx,
-                              uint32_t opts, uint8_t happy, uint8_t blinking,
-                              uint8_t double_hit, int8_t stick_side, uint8_t drum_hit,
-                              uint8_t eye_mood)
+static void draw_organic_star_pal(float cx, float cy, float radius, float angle_rad,
+                                  float sx, float sy, const sf_star_pal_t *pal,
+                                  uint32_t opts, uint8_t happy, uint8_t blinking,
+                                  uint8_t double_hit, int8_t stick_side, uint8_t drum_hit,
+                                  uint8_t eye_mood)
 {
     /* Exact 10-cubic-Bezier silhouette from Fm1BasePanel.tsx drawMiniStarfish (60,60 center, R=50) */
     static const int8_t STAR_BEZ[10][6] = {
@@ -3138,7 +3281,6 @@ static void draw_organic_star(float cx, float cy, float radius, float angle_rad,
     int32_t i, s, k, miny = 999, maxy = -999, y;
     float sc = radius * (1.0f / 50.0f);
     float ca = fm_cosf(angle_rad), sa = fm_sinf(angle_rad);
-    const sf_star_pal_t *pal = &STAR_PALS[pal_idx % 6u];
     uint16_t outline_c = blend565(pal->body, C_WHITE, 115u);
     float p0x = 0.0f, p0y = -50.0f;
 
@@ -3322,6 +3464,16 @@ static void draw_organic_star(float cx, float cy, float radius, float angle_rad,
     }
     #undef SX_PT
     #undef SY_PT
+}
+
+static void draw_organic_star(float cx, float cy, float radius, float angle_rad,
+                              float sx, float sy, uint8_t pal_idx,
+                              uint32_t opts, uint8_t happy, uint8_t blinking,
+                              uint8_t double_hit, int8_t stick_side, uint8_t drum_hit,
+                              uint8_t eye_mood)
+{
+    draw_organic_star_pal(cx, cy, radius, angle_rad, sx, sy, &STAR_PALS[pal_idx % 6u],
+                          opts, happy, blinking, double_hit, stick_side, drum_hit, eye_mood);
 }
 
 static void draw_boot_splash(uint32_t now)
@@ -3650,7 +3802,12 @@ static void draw_mini_starfish(uint32_t now, float rms)
     uint8_t happy = (!sleepy && !blink && eye_mood == 0u && now < ui.star_happy_until) ? 1u : 0u;
     uint8_t drum_hit = (is_seq && now < ui.star_drum_until) ? 1u : 0u;
     uint8_t dbl = (ui.star_last_drum == 1u || ui.star_last_drum == 4u) ? 1u : 0u;
-    uint8_t star_pal = ui.disco_mode ? (uint8_t)((set.mascot_idx + (now / 180u)) % 6u) : set.mascot_idx;
+    sf_star_pal_t star_pal;
+    if (ui.disco_mode) {
+        star_pal = STAR_PALS[(now / 180u) % 6u];
+    } else {
+        active_theme_star_pal(now, &star_pal);
+    }
 
     if (is_seq) {
         fill_ellipse(221, 28, 11, 4, drum_hit ? COL_AMBER : COL_SLATE_D);
@@ -3661,12 +3818,12 @@ static void draw_mini_starfish(uint32_t now, float rms)
         cv_line(210, 32, 232, 32, drum_hit ? COL_AMBER : COL_MUTED);
     }
 
-    draw_organic_star(221.0f + ui.star_dance_x,
-                      (is_seq ? 14.0f : 17.0f) + idle_bob + step_y,
-                      is_seq ? 11.5f : 12.8f,
-                      rot, sx, sy, star_pal,
-                      is_seq ? STAR_OPT_DRUMMER : 0u,
-                      happy, blink, dbl, ui.star_stick_side, drum_hit, eye_mood);
+    draw_organic_star_pal(221.0f + ui.star_dance_x,
+                          (is_seq ? 14.0f : 17.0f) + idle_bob + step_y,
+                          is_seq ? 11.5f : 12.8f,
+                          rot, sx, sy, &star_pal,
+                          is_seq ? STAR_OPT_DRUMMER : 0u,
+                          happy, blink, dbl, ui.star_stick_side, drum_hit, eye_mood);
     if (sleepy) {
         int32_t zy = (int32_t)((now / 450u) % 6u);
         cv_text(204, 4 + (6 - zy), &FONT_T, "Z", COL_CYAN);
@@ -4638,21 +4795,38 @@ static void draw_center_stage(uint32_t now, float rms)
             text_copy(l1, "K2:GEN | K4:", sizeof(l1)); text_cat(l1, sc);
             cv_text(18, 134, &FONT_XS, l1, COL_LABEL);
         } else if (sub == 1u) {
-            static const uint16_t SWATCH[5] = {
-                COL_GREEN, COL_AMBER, COL_CYAN, RGB(251, 113, 133), RGB(226, 232, 240)
+            static const uint16_t SWATCH[6] = {
+                RGB(226, 232, 240), COL_CYAN, COL_GREEN, COL_AMBER, RGB(251, 113, 133), RGB(192, 132, 252)
             };
-            static const char *const SW_LBL[5] = {"EMR", "AMB", "CYN", "CRM", "MNO"};
-            cv_text(12, 88, &FONT_XS, "OLED COLOR SCHEME:", COL_LIGHT);
-            for (i = 0; i < 5; i++) {
-                int32_t bx = 12 + i * 44;
-                uint8_t sel = (i == (int32_t)(set.palette % 5u)) ? 1u : 0u;
-                cv_rect(bx, 104, 40, 28, sel ? SWATCH[i] : COL_CELL);
-                if (sel) draw_rect_outline(bx - 1, 103, 42, 30, 1, C_WHITE);
-                cv_text(bx + 8, 112, &FONT_XS, SW_LBL[i], sel ? COL_BG : SWATCH[i]);
+            cv_text(12, 85, &FONT_XS, "THEMATIC UI + STARFISH:", COL_LIGHT);
+            for (i = 0; i < 8; i++) {
+                int32_t col = i & 3;
+                int32_t row = i >> 2;
+                int32_t bx = 12 + col * 55;
+                int32_t by = 96 + row * 24;
+                uint8_t sel = (i == (int32_t)(set.palette % 8u)) ? 1u : 0u;
+                uint16_t sw_c;
+                if (i < 6) sw_c = SWATCH[i];
+                else if (i == 6) sw_c = hsv_to_rgb565((float)((now * 45u / 1000u) % 360u), 0.86f, 0.96f);
+                else {
+                    float rs = 0.80f;
+                    float rh = theme_hue_for(7u, set.theme_seed, now, &rs);
+                    sw_c = hsv_to_rgb565(rh, rs, 0.96f);
+                }
+                cv_rect(bx, by, 51, 21, sel ? sw_c : COL_CELL);
+                if (i == 6) {
+                    /* Rainbow prism top bar hint */
+                    cv_rect(bx, by, 17, 2, RGB(251, 113, 133));
+                    cv_rect(bx + 17, by, 17, 2, COL_GREEN);
+                    cv_rect(bx + 34, by, 17, 2, COL_CYAN);
+                }
+                if (sel) draw_rect_outline(bx - 1, by - 1, 53, 23, 1, C_WHITE);
+                cv_text(bx + 9, by + 6, &FONT_XS, THEME_SHORT[i], sel ? COL_BG : sw_c);
             }
-            text_copy(l1, "STAR: ", sizeof(l1)); text_cat(l1, MASCOT_COLOR_NAMES[set.mascot_idx % 6u]);
-            text_cat(l1, " | POLY: "); int_text((int32_t)sf_polyphony(pr), nb); text_cat(l1, nb); text_cat(l1, "V");
-            cv_text(12, 141, &FONT_XS, l1, COL_LABEL);
+            text_copy(l1, "VCE:", sizeof(l1)); text_cat(l1, VOICE_MODE_NAMES[set.voice_mode % 3u]);
+            text_cat(l1, " "); int_text((int32_t)sf_polyphony(pr), nb); text_cat(l1, nb); text_cat(l1, "V | AT:");
+            text_cat(l1, AT_DEST_NAMES[set.at_dest % 6u]);
+            cv_text(12, 147, &FONT_XS, l1, COL_LABEL);
         } else {
             text_copy(l1, "KEY: ", sizeof(l1)); text_cat(l1, NOTE12[set.root % 12u]);
             text_cat(l1, " "); text_cat(l1, SCALE_NAMES[set.scale % SF_NSCALE]);
@@ -5082,7 +5256,6 @@ void app_ui_init(void)
     jp = (uint8_t)(set.recent_presets[rp_idx][1] % bank_len(jb));
     jpatch = get_preset_ptr(jb, jp);
     text_copy(ui.boot_preset_name, jpatch->name, sizeof(ui.boot_preset_name));
-    set.mascot_idx = ui.boot_act;
     ui.boot_start = now;
     ui.boot_until = now + BOOT_SPLASH_MS;
     ui.star_step_dir = 1;
@@ -5152,7 +5325,8 @@ int app_expect(const char *what, int *got)
         {"playing", 5}, {"arp", 6}, {"note", 7}, {"vel", 8}, {"prs", 9},
         {"turns5", 10}, {"bpm", 11}, {"sub", 12}, {"drum_vol", 13}, {"drum_lvl0", 14},
         {"rec_quant", 15}, {"loop_cnt", 16}, {"palette", 17}, {"drum_loop_bars", 18},
-        {"synth_vol", 19}, {"duck_amt", 20}, {"midi_synth_ch", 21}, {"midi_drum_ch", 22}
+        {"synth_vol", 19}, {"duck_amt", 20}, {"midi_synth_ch", 21}, {"midi_drum_ch", 22},
+        {"voice_mode", 23}, {"at_dest", 24}
     };
     for (i = 0; i < sizeof(MAP) / sizeof(MAP[0]); i++) {
         const char *a = what, *b = MAP[i].k;
@@ -5182,6 +5356,8 @@ int app_expect(const char *what, int *got)
             case 20: *got = (int)set.duck_amt; return 1;
             case 21: *got = (int)set.midi_synth_ch; return 1;
             case 22: *got = (int)set.midi_drum_ch; return 1;
+            case 23: *got = (int)set.voice_mode; return 1;
+            case 24: *got = (int)set.at_dest; return 1;
             }
         }
     }

@@ -704,13 +704,13 @@
       subs: [
         {
           title: "PATCH PERF (1/3)",
-          sub: "Filter 1 cutoff/resonance, Filter 2 cutoff, dual-filter balance & reactive mascot",
+          sub: "Dual filter Cutoffs & Resonances (CUTOFF 1, RESO 1, CUTOFF 2, RESO 2) & reactive mascot",
           note: "SELECT scrolls presets 0–31. PRESETS switches Banks A–I and User Bank X. ALGORITHM changes the synth oscillator engine.",
           knobs: [
             { name: "CUTOFF 1", min: 0, max: 127, val: 72, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Primary Filter 1 cutoff frequency (40 Hz to 12.5 kHz)." },
             { name: "RESO 1", min: 0, max: 127, val: 42, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 1 resonance emphasis (headroom-compensated when modulated by LFO)." },
             { name: "CUTOFF 2", min: 0, max: 127, val: 96, unit: "", fmt: v => `${Math.round(40 * Math.pow(2, (v/127)*8.28))}Hz`, desc: "Secondary Filter 2 cutoff for Serial, Parallel, or Split dual-filter shaping." },
-            { name: "F-BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Crossfades signal emphasis between Filter 1 (0%) and Filter 2 (100%)." }
+            { name: "RESO 2", min: 0, max: 127, val: 28, unit: "", fmt: v => `Q ${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 2 resonance Q emphasis alongside Filter 1 for immediate dual-filter sound sculpting." }
           ]
         },
         {
@@ -767,13 +767,13 @@
       subs: [
         {
           title: "FILTER ARCH (1/2)",
-          sub: "Filter 1 & Filter 2 response modes, Serial/Parallel/Split routing & Filter 2 resonance",
-          note: "Cutoffs, Primary Resonance, and Filter Balance live on HOME 1/3 for instant performance access without menu duplication.",
+          sub: "Filter 1 & Filter 2 response modes, Serial/Parallel/Split routing & Filter Balance",
+          note: "Both Cutoffs (CUTOFF 1/2) and Resonances (RESO 1/2) live together on HOME 1/3 for instant sound sculpting with zero menu duplication.",
           knobs: [
             { name: "F1 TYPE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","BS"][v], desc: "Filter 1 slope response mode (Lowpass, Bandpass, Highpass, Notch)." },
             { name: "ROUTING", min: 0, max: 2, val: 0, unit: "", fmt: v => ["SERIAL","PARALLEL","SPLIT"][v], desc: "Signal topology between Filter 1 and Filter 2." },
             { name: "F2 TYPE", min: 0, max: 3, val: 0, unit: "", fmt: v => ["LP","BP","HP","BS"][v], desc: "Filter 2 response mode (Lowpass, Bandpass, Highpass, Notch)." },
-            { name: "RESO 2", min: 0, max: 127, val: 28, unit: "", fmt: v => `${(0.5 + (v/127)*17.5).toFixed(1)}`, desc: "Filter 2 resonance Q emphasis." }
+            { name: "F-BAL", min: 0, max: 100, val: 50, unit: "%", fmt: v => `${v}%`, desc: "Crossfades signal emphasis between Filter 1 (0%) and Filter 2 (100%)." }
           ]
         },
         {
@@ -930,13 +930,13 @@
         },
         {
           title: "EUCLID & GRV (2/3)",
-          sub: "Euclidean pattern generator, rotation, swing & instant groove presets",
-          note: "Global Swing lives cleanly here once; K4 loads TECHNO, HOUSE, ELECTRO, or BREAK preset grooves without clearing custom edits unintentionally.",
+          sub: "Euclidean pattern generator, rotation, swing & 12 instant groove presets",
+          note: "Global Swing lives cleanly here once; K4 loads 12 preset drum grooves without clearing custom edits unintentionally.",
           knobs: [
             { name: "EUC HITS", min: 0, max: 16, val: 4, unit: "", fmt: v => `${v}/16`, desc: "Euclidean pulse count across the active drum loop length." },
             { name: "ROTATE", min: 0, max: 15, val: 0, unit: "", fmt: v => `+${v}`, desc: "Step phase rotation shift for the Euclidean pattern." },
             { name: "SWING", min: 50, max: 75, val: 52, unit: "%", fmt: v => `${v}%`, desc: "Shuffle timing applied cleanly across sequencer & arp 16th offbeats (50%–75%)." },
-            { name: "PATTERN", min: 0, max: 3, val: 0, unit: "", fmt: v => ["TECHNO","HOUSE","ELECTRO","BREAK"][v], desc: "Applies preset 16-step drum groove (TECHNO, HOUSE, ELECTRO, BREAK)." }
+            { name: "PATTERN", min: 0, max: 11, val: 0, unit: "", fmt: v => ["TECHNO","HOUSE","ELECTRO","BREAK","ACID","TRAP","DNB","DUBSTEP","SYNTHWAV","AFROBEAT","MINIMAL","GARAGE"][v], desc: "Applies 12 preset 16-step drum grooves (TECHNO, HOUSE, ELECTRO, BREAK, ACID, TRAP, DNB, DUBSTEP, SYNTHWAV, AFROBEAT, MINIMAL, GARAGE)." }
           ]
         },
         {
@@ -967,13 +967,13 @@
         },
         {
           title: "UI & VOICE (2/4)",
-          sub: "OLED theme palette, Starfish mascot color & voice polyphony",
-          note: "Octave transposition stays exclusively on the dedicated OCT- and OCT+ panel buttons.",
+          sub: "8 unified OLED + Starfish themes (Mono -> Prism -> Random), Voice Mode, Poly & Aftertouch Dest",
+          note: "Starfish mascot colors are folded into each Theme. AT DEST routes keybed pressure / MIDI aftertouch to Filter 1 Cutoff, Vibrato, Resonance, Drive, Amp, or Off.",
           knobs: [
-            { name: "THEME", min: 0, max: 4, val: 2, unit: "", fmt: v => ["EMERALD","AMBER","CYAN","CRIMSON","MONO"][v], desc: "Switches OLED accent color theme." },
-            { name: "STARFISH", min: 0, max: 5, val: 0, unit: "", fmt: v => ["CORAL","LAGOON","SUNBURST","NEBULA","REEF","TANGERIN"][v], desc: "Selects top-right Starfish mascot palette." },
+            { name: "THEME", min: 0, max: 7, val: 1, unit: "", fmt: v => ["MONOLITH","ABYSSAL","EMERALD","SOLARIS","CORALTID","VAPOR","PRISM","RANDOM"][v], desc: "8 unified OLED + Starfish color schemes from Mono -> Prism rainbow -> Generative Random." },
+            { name: "VOICE MODE", min: 0, max: 2, val: 0, unit: "", fmt: v => ["POLY","MONO","LEGATO"][v], desc: "Polyphonic, Retriggered Monophonic, or smooth non-retriggered Legato voice allocation." },
             { name: "POLY", min: 1, max: 8, val: 8, unit: "v", fmt: v => `${v}V`, desc: "Voice polyphony allocation (1 mono up to 8 voices)." },
-            { name: "--", min: 0, max: 1, val: 0, unit: "", disabled: true, fmt: () => "UNUSED", desc: "Unassigned slot." }
+            { name: "AT DEST", min: 0, max: 5, val: 0, unit: "", fmt: v => ["CUTOFF","VIBRATO","RESO","DRIVE","AMP","OFF"][v], desc: "Global destination for pressure-sensitive keybed & MIDI aftertouch." }
           ]
         },
         {
@@ -1280,19 +1280,32 @@
       return;
     }
 
+    const guideThemes = [
+      { short: "MONO", accent: "#e2e8f0", star: "#cbd5e1" },
+      { short: "ABYS", accent: "#22d3ee", star: "#38bdf8" },
+      { short: "EMRL", accent: "#34d399", star: "#2dd4bf" },
+      { short: "SOLR", accent: "#fbbf24", star: "#f59e0b" },
+      { short: "CORL", accent: "#fb7185", star: "#ff6b8b" },
+      { short: "VAPR", accent: "#c084fc", star: "#e879f9" },
+      { short: "PRSM", accent: `hsl(${Math.round((t * 45) % 360)},88%,63%)`, star: `hsl(${Math.round((t * 45 + 150) % 360)},86%,63%)` },
+      { short: "RND*", accent: "#38bdf8", star: "#fb923c" }
+    ];
+    const activeThemeIdx = Math.max(0, Math.min(7, Math.round(PAGES.GLO.subs[1].knobs[0].val)));
+    const activeGuideTheme = guideThemes[activeThemeIdx];
+
     // Top Header Bar
     ctx.fillStyle = "#0d131f";
     ctx.fillRect(0, 0, W, 38);
-    ctx.fillStyle = "#22d3ee";
+    ctx.fillStyle = activeGuideTheme.accent;
     ctx.font = "800 10px monospace";
     ctx.fillText("I000 Star Phaser Pad", 10, 15);
     ctx.fillStyle = "#94a3b8";
     ctx.font = "700 9px monospace";
     ctx.fillText("120 BPM", 162, 15);
 
-    // Starfish mascot mini glyph top-right
+    // Starfish mascot mini glyph top-right (synced to active Theme)
     const bounce = Math.sin(t * 4) * 1.2;
-    ctx.fillStyle = "#fb7185";
+    ctx.fillStyle = activeGuideTheme.star;
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
       const ang = (i * Math.PI) / 5 - Math.PI / 2;
@@ -1446,7 +1459,7 @@
       ctx.textAlign = "left";
     } else if (curPage === "SEL" || (curPage === "HOME" && curSub === 0)) {
       const c1 = curPage === "HOME" ? (ks[0].val - ks[0].min) / (ks[0].max - ks[0].min) : 0.52;
-      const res = curPage === "HOME" ? ks[1].val / 127 : (curSub === 0 ? ks[3].val / 127 : 0.35);
+      const res = curPage === "HOME" ? Math.max(ks[1].val, ks[3].val) / 127 : 0.35;
       ctx.strokeStyle = "#22d3ee";
       ctx.lineWidth = 2.2;
       ctx.beginPath();
@@ -1480,6 +1493,36 @@
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       ctx.stroke();
+    } else if (curPage === "GLO" && curSub === 1) {
+      // GLO 2/4 2x4 Theme Swatch Grid + Voice Mode readout
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "700 9.5px monospace";
+      ctx.fillText("THEMATIC UI + STARFISH:", 12, 92);
+      guideThemes.forEach((th, idx) => {
+        const col = idx % 4, row = Math.floor(idx / 4);
+        const bx = 12 + col * 55, by = 98 + row * 23;
+        const sel = idx === activeThemeIdx;
+        ctx.fillStyle = sel ? th.accent : "#141b29";
+        ctx.fillRect(bx, by, 51, 20);
+        if (idx === 6) {
+          ctx.fillStyle = "#fb7185"; ctx.fillRect(bx, by, 17, 2);
+          ctx.fillStyle = "#34d399"; ctx.fillRect(bx + 17, by, 17, 2);
+          ctx.fillStyle = "#22d3ee"; ctx.fillRect(bx + 34, by, 17, 2);
+        }
+        if (sel) {
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bx - 0.5, by - 0.5, 52, 21);
+        }
+        ctx.fillStyle = sel ? "#07090e" : th.accent;
+        ctx.font = "800 9.5px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(th.short, bx + 25.5, by + 13.5);
+      });
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "700 9.5px monospace";
+      ctx.fillText(`VCE:${ks[1].fmt(ks[1].val)} ${ks[2].fmt(ks[2].val)} · AT:${ks[3].fmt(ks[3].val)}`, 12, 155);
     } else {
       // Clean 4-meter stage summary
       ks.forEach((k, i) => {

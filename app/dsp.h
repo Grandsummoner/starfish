@@ -59,6 +59,8 @@ typedef struct {
     uint8_t scale;             /* 0..11 */
     uint8_t root;              /* 0..11 */
     uint8_t chord_mode;        /* 0..4 */
+    uint8_t voice_mode;        /* 0=POLY, 1=MONO, 2=LEGATO */
+    uint8_t at_dest;           /* 0=CUTOFF, 1=VIBRATO, 2=RESO, 3=DRIVE, 4=AMP, 5=OFF */
     uint8_t arp_mode;          /* 0..5 */
     uint8_t arp_rate;          /* 0..9 */
     uint8_t arp_octs;          /* 1..3 */
@@ -102,6 +104,7 @@ void sf_dsp_note_on(uint8_t note, uint8_t vel);
 void sf_dsp_note_off(uint8_t note);
 void sf_dsp_all_notes_off(void);
 void sf_dsp_aftertouch(uint8_t note, uint8_t prs);
+void sf_dsp_channel_aftertouch(uint8_t prs);
 void sf_dsp_set_pitch_bend(int16_t bend_q14);
 void sf_dsp_set_mod_wheel(uint8_t val);
 void sf_dsp_trigger_drum(uint8_t voice, uint8_t vel);

@@ -227,6 +227,7 @@ typedef struct {
     float flt_env;
     float pitch_cur;
     float vel_g_cur;
+    float prs_cur;
     float punch_env;
     float last_l, last_r;
     float click_l, click_r;
@@ -289,7 +290,9 @@ static struct {
     uint32_t voice_age;
     int32_t last_note;
     float last_pitch_note;
-    float lfo1_ph, lfo2_ph, swarm_ph;
+    int8_t mono_stack[8];
+    uint8_t mono_len;
+    float lfo1_ph, lfo2_ph, swarm_ph, at_vib_ph;
     float chor_ph, phas_ph;
     float phas_st[4][2];
     uint32_t del_wr;
@@ -390,6 +393,7 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     dsp.cfg = cfg;
     dsp.last_note = -1;
     dsp.last_pitch_note = 60.0f;
+    dsp.mono_len = 0u;
     dsp.voice_age = 1u;
     dsp.master_now = 0.0f;
     dsp.del_tap_cur = 3200.0f;
@@ -523,6 +527,7 @@ void sf_dsp_panic(void)
         dsp.drums[i].last_s = 0.0f;
     }
     dsp.last_note = -1;
+    dsp.mono_len = 0u;
     dsp.duck_env = 0.0f;
     dsp.duck_atk_rem = 0u;
     dsp.duck_trig = 0u;
@@ -664,10 +669,76 @@ static PLAT_RAM_CODE uint32_t alloc_voice(int8_t note, uint8_t max_poly)
     return best;
 }
 
+static PLAT_RAM_CODE void mono_stack_push(int8_t note)
+{
+    uint8_t i, j;
+    for (i = 0u; i < dsp.mono_len; i++) {
+        if (dsp.mono_stack[i] == note) {
+            for (j = i; (uint32_t)(j + 1u) < (uint32_t)dsp.mono_len; j++)
+                dsp.mono_stack[j] = dsp.mono_stack[j + 1u];
+            dsp.mono_len--;
+            break;
+        }
+    }
+    if (dsp.mono_len >= 8u) {
+        for (j = 0u; j < 7u; j++)
+            dsp.mono_stack[j] = dsp.mono_stack[j + 1u];
+        dsp.mono_len = 7u;
+    }
+    dsp.mono_stack[dsp.mono_len++] = note;
+}
+
+static PLAT_RAM_CODE void mono_stack_remove(int8_t note)
+{
+    uint8_t i, j;
+    for (i = 0u; i < dsp.mono_len; i++) {
+        if (dsp.mono_stack[i] == note) {
+            for (j = i; (uint32_t)(j + 1u) < (uint32_t)dsp.mono_len; j++)
+                dsp.mono_stack[j] = dsp.mono_stack[j + 1u];
+            dsp.mono_len--;
+            break;
+        }
+    }
+}
+
+static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is_jingle);
+
 static PLAT_RAM_CODE void internal_note_off(uint8_t note)
 {
     uint32_t i;
     int32_t any = -1;
+    uint8_t vmode = dsp.cfg ? (dsp.cfg->voice_mode % 3u) : 0u;
+    int8_t prev_top = (dsp.mono_len > 0u) ? dsp.mono_stack[dsp.mono_len - 1u] : (int8_t)-1;
+    mono_stack_remove((int8_t)note);
+
+    if (vmode != 0u && dsp.mono_len > 0u && prev_top == (int8_t)note) {
+        int8_t fallback = dsp.mono_stack[dsp.mono_len - 1u];
+        if (vmode == 2u) {
+            /* LEGATO: glide cleanly back to previously held note without envelope retrigger */
+            for (i = 0; i < SF_MAX_VOICES; i++) {
+                if (dsp.voices[i].active && dsp.voices[i].gate && !dsp.voices[i].is_jingle) {
+                    dsp.voices[i].note = fallback;
+                    dsp.voices[i].age = ++dsp.voice_age;
+                    dsp.last_pitch_note = (float)fallback;
+                    dsp.last_note = (int32_t)fallback;
+                    return;
+                }
+            }
+        }
+        /* MONO (or no active gated voice): retrigger previous held note */
+        {
+            uint8_t fvel = 96u;
+            for (i = 0; i < SF_MAX_VOICES; i++) {
+                if (dsp.voices[i].active && !dsp.voices[i].is_jingle && dsp.voices[i].vel > 0u) {
+                    fvel = dsp.voices[i].vel;
+                    break;
+                }
+            }
+            internal_note_on((uint8_t)fallback, fvel, 0u);
+            return;
+        }
+    }
+
     for (i = 0; i < SF_MAX_VOICES; i++) {
         if (dsp.voices[i].active && dsp.voices[i].note == (int8_t)note && dsp.voices[i].gate) {
             dsp.voices[i].gate = 0u;
@@ -684,11 +755,14 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
 {
     uint32_t idx;
     va_voice_t *v;
+    uint8_t vmode = (!is_jingle && dsp.cfg) ? (dsp.cfg->voice_mode % 3u) : 0u;
     uint8_t max_poly = dsp.cfg ? sf_polyphony(&dsp.cfg->patch) : SF_MAX_VOICES;
     if (max_poly < 1u) max_poly = 1u;
     if (max_poly > SF_MAX_VOICES) max_poly = SF_MAX_VOICES;
     if (is_jingle) {
         max_poly = SF_MAX_VOICES;
+    } else if (vmode != 0u) {
+        max_poly = 1u;
     } else {
         uint8_t active_drums = 0u, di;
         for (di = 0u; di < SF_DRUM_VOICES; di++) {
@@ -703,10 +777,44 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
         internal_note_off(note);
         return;
     }
-    idx = alloc_voice((int8_t)note, max_poly);
+    if (!is_jingle) {
+        if (vmode != 0u) mono_stack_push((int8_t)note);
+        else dsp.mono_len = 0u;
+    }
+    if (vmode == 2u) {
+        /* LEGATO: if a non-jingle gated voice is already sounding, slide pitch without resetting envelopes */
+        uint32_t li;
+        for (li = 0u; li < SF_MAX_VOICES; li++) {
+            va_voice_t *lv = &dsp.voices[li];
+            if (lv->active && lv->gate && !lv->is_jingle) {
+                lv->note = (int8_t)note;
+                lv->vel = vel;
+                lv->age = ++dsp.voice_age;
+                dsp.last_pitch_note = (float)note;
+                dsp.last_note = (int32_t)note;
+                dsp.vis.note_trig_seq++;
+                return;
+            }
+        }
+    }
+    if (vmode != 0u) {
+        /* Enforce single mono voice cleanly before allocating slot 0 */
+        uint32_t mi;
+        for (mi = 1u; mi < SF_MAX_VOICES; mi++) {
+            if (dsp.voices[mi].active && !dsp.voices[mi].is_jingle) {
+                dsp.voices[mi].active = 0u;
+                dsp.voices[mi].gate = 0u;
+                dsp.voices[mi].amp_st = ENV_OFF;
+                dsp.voices[mi].flt_st = ENV_OFF;
+            }
+        }
+        idx = 0u;
+    } else {
+        idx = alloc_voice((int8_t)note, max_poly);
+    }
     v = &dsp.voices[idx];
-    if (v->active && v->note != (int8_t)note) {
-        /* Clickless 1.45ms tail crossfade when stealing an active voice */
+    if (v->active && (v->note != (int8_t)note || vmode == 1u)) {
+        /* Clickless 1.45ms tail crossfade when stealing or retriggering mono voice */
         v->click_l = v->last_l;
         v->click_r = v->last_r;
         v->click_rem = 64u;
@@ -742,6 +850,7 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
     v->note = (int8_t)note;
     v->vel = vel;
     v->prs = 0u;
+    v->prs_cur = 0.0f;
     v->age = ++dsp.voice_age;
     v->amp_st = ENV_ATK;
     v->flt_st = ENV_ATK;
@@ -777,6 +886,7 @@ void sf_dsp_all_notes_off(void)
             dsp.voices[i].flt_st = ENV_REL;
         }
     }
+    dsp.mono_len = 0u;
     dsp.last_note = -1;
     plat_unlock(f);
 }
@@ -787,6 +897,17 @@ void sf_dsp_aftertouch(uint8_t note, uint8_t prs)
     uint32_t f = plat_lock();
     for (i = 0; i < SF_MAX_VOICES; i++) {
         if (dsp.voices[i].active && dsp.voices[i].note == (int8_t)note)
+            dsp.voices[i].prs = prs;
+    }
+    plat_unlock(f);
+}
+
+void sf_dsp_channel_aftertouch(uint8_t prs)
+{
+    uint32_t i;
+    uint32_t f = plat_lock();
+    for (i = 0; i < SF_MAX_VOICES; i++) {
+        if (dsp.voices[i].active && dsp.voices[i].gate && !dsp.voices[i].is_jingle)
             dsp.voices[i].prs = prs;
     }
     plat_unlock(f);
@@ -1149,9 +1270,12 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     dsp.lfo1_ph = fast_wrap01(dsp.lfo1_ph + lfo1_hz * (float)n * INV_SR);
     dsp.lfo2_ph = fast_wrap01(dsp.lfo2_ph + lfo2_hz * (float)n * INV_SR);
     dsp.swarm_ph = fast_wrap01(dsp.swarm_ph + swarm_hz * (float)n * INV_SR);
+    dsp.at_vib_ph = fast_wrap01(dsp.at_vib_ph + 5.5f * (float)n * INV_SR);
     float lfo1 = eval_lfo(dsp.lfo1_ph, sf_lfo1_shape(p)) * ((float)p->lfo1_depth * 0.01f);
     float lfo2 = eval_lfo(dsp.lfo2_ph, sf_lfo2_shape(p)) * ((float)p->lfo2_depth * 0.01f);
     float swarm_mod = sf_ram_sin_turns(dsp.swarm_ph) * ((float)p->swarm_depth * 0.0035f);
+    float at_vib_sin = sf_ram_sin_turns(dsp.at_vib_ph);
+    uint8_t at_dest = dsp.jingle_active ? 5u : (uint8_t)(cfg->at_dest % 6u);
 
     uint8_t l1d = sf_lfo1_dest(p);
     uint8_t l2d = sf_lfo2_dest(p);
@@ -1194,7 +1318,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     uint8_t do_sync = sf_osc_sync(p);
     uint8_t sat_mode = sf_sat_mode(p);
     uint8_t unison = sf_unison(p);
-    float drive = 1.0f + (float)p->fx_drive * 0.032f;
+    float drive_base = 1.0f + (float)p->fx_drive * 0.032f;
     float amp_d = sf_clamp(((l1d == SF_LFO_AMP ? (float)p->lfo1_depth : 0.0f)
                           + (l2d == SF_LFO_AMP ? (float)p->lfo2_depth : 0.0f)) * 0.0038f, 0.0f, 0.42f);
     float trem = sf_clamp((1.0f - amp_d) + mod_amp * 0.36f, 0.16f, 1.0f);
@@ -1210,6 +1334,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     int32_t vis_v = -1;
     float vis_c1_oct = mod_cut1 * 2.5f + dsp.mod_wheel_cur * 3.2f;
     float vis_c2_oct = mod_cut2 * 2.5f + dsp.mod_wheel_cur * 1.8f;
+    float vis_reso_add = 0.0f;
 
     for (v = 0; v < SF_MAX_VOICES; v++) {
         va_voice_t *vc = &dsp.voices[v];
@@ -1217,9 +1342,19 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         if (!vc->active)
             continue;
 
+        vc->prs_cur += (((float)vc->prs * (1.0f / 127.0f)) - vc->prs_cur) * 0.15f;
+        float prs_n = vc->prs_cur;
+        float at_cut1 = (at_dest == 0u) ? (prs_n * 1.4f) : 0.0f;
+        float at_cut2 = (at_dest == 0u) ? (prs_n * 0.6f) : 0.0f;
+        float at_vib = (at_dest == 1u) ? (prs_n * 0.65f * at_vib_sin) : 0.0f;
+        float at_reso = (at_dest == 2u) ? (prs_n * 5.2f) : 0.0f;
+        float at_drive = (at_dest == 3u) ? (prs_n * 1.65f) : 0.0f;
+        float at_amp = (at_dest == 4u) ? (1.0f + prs_n * 0.65f) : 1.0f;
+        float drive = drive_base + at_drive;
+
         vc->pitch_cur += ((float)vc->note - vc->pitch_cur) * glide_coeff;
         float punch_cur = vc->punch_env * punch_amt;
-        float note_f = vc->pitch_cur + (float)p->oct * 12.0f + mod_pitch * 1.5f + dsp.pitch_bend_cur + punch_cur * 2.1f;
+        float note_f = vc->pitch_cur + (float)p->oct * 12.0f + mod_pitch * 1.5f + dsp.pitch_bend_cur + punch_cur * 2.1f + at_vib;
         float f0 = 440.0f * sf_ram_exp2f((note_f - 69.0f) * (1.0f / 12.0f));
         float dt1 = sf_clamp(f0 * INV_SR, 0.0001f, 0.45f);
         float dt2 = sf_clamp(f0 * osc2_ratio * INV_SR, 0.0001f, 0.45f);
@@ -1228,21 +1363,22 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float kf_oct = ((vc->pitch_cur - 60.0f) * (1.0f / 12.0f)) * kf_amt;
         float vel_norm = (float)vc->vel * (1.0f / 127.0f);
         float vel_cut = (vel_norm - 0.55f) * (2.30f * vel_sens_f);
-        float c1_oct = mod_cut1 * 2.5f + (vc->flt_env * fenv_oct) + kf_oct + vel_cut + ((float)vc->prs * (1.0f / 127.0f)) * 1.4f + dsp.mod_wheel_cur * 3.2f + punch_cur * 1.35f;
+        float c1_oct = mod_cut1 * 2.5f + (vc->flt_env * fenv_oct) + kf_oct + vel_cut + at_cut1 + dsp.mod_wheel_cur * 3.2f + punch_cur * 1.35f;
         float cut_scale = sf_ram_exp2f(c1_oct);
         float cut1_hz = sf_clamp(cut1_base * cut_scale, 40.0f, 12500.0f);
         float g1 = sf_clamp(3.14159f * cut1_hz * INV_SR, 0.0028f, 0.89f);
         float hf1 = sf_clamp((cut1_hz - 7500.0f) * (1.0f / 5000.0f), 0.0f, 1.0f);
-        float q1_eff = q1 * (1.0f - hf1 * 0.65f);
+        float q1_eff = sf_clamp(q1 + at_reso, 0.5f, 16.5f) * (1.0f - hf1 * 0.65f);
         if (q1_eff < 0.5f) q1_eff = 0.5f;
 
-        float c2_oct = mod_cut2 * 2.5f + (vc->flt_env * f2env_oct) + kf_oct * 0.5f + vel_cut * 0.4f + dsp.mod_wheel_cur * 1.8f;
+        float c2_oct = mod_cut2 * 2.5f + (vc->flt_env * f2env_oct) + kf_oct * 0.5f + vel_cut * 0.4f + at_cut2 + dsp.mod_wheel_cur * 1.8f;
         float cut2_hz = sf_clamp(cut2_base * sf_ram_exp2f(c2_oct), 40.0f, 12500.0f);
         if (vc->age >= vis_age) {
             vis_age = vc->age;
             vis_v = (int32_t)v;
             vis_c1_oct = c1_oct;
             vis_c2_oct = c2_oct;
+            vis_reso_add = at_reso * 0.06f;
         }
         float g2 = sf_clamp(3.14159f * cut2_hz * INV_SR, 0.0028f, 0.89f);
         float hf2 = sf_clamp((cut2_hz - 7500.0f) * (1.0f / 5000.0f), 0.0f, 1.0f);
@@ -1264,7 +1400,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float drv_comp = 1.0f / (1.0f + (drive - 1.0f) * 0.36f);
         float q_comp = 1.0f / (1.0f + sf_clamp((q1_eff - 2.2f) * 0.048f, 0.0f, 0.45f));
         float norm_gain = sf_clamp(flt_comp * cut_comp * drv_comp * q_comp, 0.52f, 1.38f);
-        float vel_g = (vel_amp_min + (1.0f - vel_amp_min) * vel_norm) * 0.175f * norm_gain * trem;
+        float vel_g = (vel_amp_min + (1.0f - vel_amp_min) * vel_norm) * 0.175f * norm_gain * trem * at_amp;
         if (vc->vel_g_cur < 0.0f)
             vc->vel_g_cur = vel_g;
         float vpan = sf_clamp((((float)(v & 3u) - 1.5f) * 0.22f * spread * uni_pan_norm) + mod_pan * 0.5f, -0.82f, 0.82f);
@@ -1382,7 +1518,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 src1 = sf_clamp(src1 * drive, -0.95f, 0.95f);
             } else if (sat_mode == SF_SAT_TUBE) {
                 src1 = sf_soft_clip(src1 * drive * 1.2f);
-            } else if (sat_mode == SF_SAT_SOFT) {
+            } else if (sat_mode == SF_SAT_SOFT || at_drive > 0.02f) {
                 src1 = sf_soft_clip(src1 * (0.82f + drive * 0.22f));
             }
 
@@ -1805,7 +1941,7 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
         dsp.vis.mod_cut1 = (uint8_t)sf_clamp((float)p->f1_cut + vis_c1_oct * (127.0f / 8.287712f), 0.0f, 127.0f);
         dsp.vis.mod_cut2 = (uint8_t)sf_clamp((float)p->f2_cut + vis_c2_oct * (127.0f / 8.287712f), 0.0f, 127.0f);
-        dsp.vis.mod_res1_pct = (uint8_t)sf_clamp(((float)p->f1_res * (1.0f / 127.0f) + mod_reso * 0.45f) * 100.0f, 0.0f, 100.0f);
+        dsp.vis.mod_res1_pct = (uint8_t)sf_clamp(((float)p->f1_res * (1.0f / 127.0f) + mod_reso * 0.45f + vis_reso_add) * 100.0f, 0.0f, 100.0f);
         if (vis_v >= 0 && dsp.voices[vis_v].active) {
             va_voice_t *vv = &dsp.voices[vis_v];
             uint8_t ast = vv->amp_st;
