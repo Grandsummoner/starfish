@@ -70,21 +70,29 @@ tap PLAY
 wait 30
 expect playing 0
 
-# Verify ARP direct page cycle (1/2 -> 2/2 -> HOME) and K1 ARP toggle
+# Verify ARP direct page cycle (1/3 -> 2/3 -> 3/3 -> HOME) and K1 ARP toggle
 tap ARP
 wait 30
 expect page 7
+expect sub 0
 turn K1 1
 wait 30
 expect arp 1
 tap ARP
 wait 30
 expect page 7
+expect sub 1
+tap ARP
+wait 30
+expect page 7
+expect sub 2
 tap ARP
 wait 30
 expect page 0
 tap ARP
 wait 30
+expect page 7
+expect sub 0
 turn K1 -1
 wait 30
 expect arp 0
@@ -92,6 +100,7 @@ expect arp 0
 # Return to synth HOME mode and verify velocity & aftertouch sensing
 tap HOME
 wait 30
+expect page 0
 key 7 down 45
 wait 60
 expect vel >30
