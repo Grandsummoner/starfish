@@ -50,14 +50,6 @@ From evolving Hypersaw textures and deep basses to rhythmic drum patterns and ex
 
 ## 🚀 Web Installer & Interactive User Guide
 
-<p align="center">
-  <a href="https://grandsummoner.github.io/starfish/">
-    <strong>🌐 OPEN STARFISH WEB INSTALLER</strong>
-  </a>
-  <br>
-  <sub>Install firmware, restore stock firmware and access device diagnostics.</sub>
-</p>
-
 STARFISH includes two companion web applications hosted on GitHub Pages.
 
 ### 1. Web MIDI Firmware Installer
