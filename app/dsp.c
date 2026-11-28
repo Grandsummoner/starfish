@@ -335,6 +335,9 @@ static struct {
     float mod_wheel_targ, mod_wheel_cur;
     float s_lvl_cur;
     float tilt_lp_l, tilt_lp_r;
+    float gate_ph, gate_env;
+    float riser_ph, riser_env;
+    float wash_env, wash_lp_l, wash_lp_r;
 } dsp;
 
 static void init_wavetable_lut(void)
@@ -456,6 +459,13 @@ void sf_dsp_init(sf_engine_cfg_t *cfg)
     dsp.mod_wheel_targ = dsp.mod_wheel_cur = 0.0f;
     dsp.s_lvl_cur = -1.0f;
     dsp.tilt_lp_l = dsp.tilt_lp_r = 0.0f;
+    dsp.gate_ph = 0.0f;
+    dsp.gate_env = 1.0f;
+    dsp.riser_ph = 0.0f;
+    dsp.riser_env = 0.0f;
+    dsp.wash_env = 0.0f;
+    dsp.wash_lp_l = dsp.wash_lp_r = 0.0f;
+    dsp.vis.gate_step = 0u;
 }
 
 void sf_dsp_set_cfg(sf_engine_cfg_t *cfg)
@@ -541,6 +551,13 @@ void sf_dsp_panic(void)
     dsp.pitch_bend_targ = dsp.pitch_bend_cur = 0.0f;
     dsp.mod_wheel_targ = dsp.mod_wheel_cur = 0.0f;
     dsp.tilt_lp_l = dsp.tilt_lp_r = 0.0f;
+    dsp.gate_ph = 0.0f;
+    dsp.gate_env = 1.0f;
+    dsp.riser_ph = 0.0f;
+    dsp.riser_env = 0.0f;
+    dsp.wash_env = 0.0f;
+    dsp.wash_lp_l = dsp.wash_lp_r = 0.0f;
+    dsp.vis.gate_step = 0u;
     plat_unlock(f);
 }
 
@@ -584,17 +601,17 @@ void sf_dsp_start_easter_egg(void)
     dsp.jingle_patch.osc_meta = (uint8_t)(SF_OSC_HYPERSAW);
     dsp.jingle_patch.unison_poly = (uint8_t)(2u | (7u << 3)); /* 3-voice unison, 8-voice poly */
     dsp.jingle_patch.osc2_detune = 8u;
-    dsp.jingle_patch.osc_bal = 50u;
+    sf_set_osc_bal(&dsp.jingle_patch, 50u);
     dsp.jingle_patch.pw = 64u;
-    dsp.jingle_patch.spread = 68u;
-    dsp.jingle_patch.sub_vol = 28u;
+    sf_set_spread(&dsp.jingle_patch, 68u);
+    sf_set_sub_vol(&dsp.jingle_patch, 28u);
     dsp.jingle_patch.f2_type_route = (uint8_t)(SF_FLT_LP | (SF_FLT_LP << 2) | (SF_ROUTE_SER << 4) | (SF_SAT_SOFT << 6));
     dsp.jingle_patch.f1_cut = 88u;
     dsp.jingle_patch.f1_res = 22u;
     dsp.jingle_patch.f2_cut = 110u;
     dsp.jingle_patch.f2_res = 12u;
-    dsp.jingle_patch.f_bal = 35u;
-    dsp.jingle_patch.f_keyfollow = 45u;
+    sf_set_f_bal(&dsp.jingle_patch, 35u);
+    sf_set_f_keyfollow(&dsp.jingle_patch, 45u);
     dsp.jingle_patch.f1_env_s = 32;
     dsp.jingle_patch.a_atk = 18u;
     dsp.jingle_patch.a_dec = 54u;
@@ -604,15 +621,16 @@ void sf_dsp_start_easter_egg(void)
     dsp.jingle_patch.f_dec = 52u;
     dsp.jingle_patch.f_sus = 68u;
     dsp.jingle_patch.f_rel = 58u;
-    dsp.jingle_patch.fx_chorus = 98u;
-    dsp.jingle_patch.fx_phaser = 14u;
-    dsp.jingle_patch.fx_phaser_rate = 5u;
-    dsp.jingle_patch.fx_del_time = 28u;
-    dsp.jingle_patch.fx_del_mix = 26u;
-    dsp.jingle_patch.fx_del_fb = 34u;
-    dsp.jingle_patch.fx_reverb = 56u;
-    dsp.jingle_patch.fx_drive = 12u;
-    dsp.jingle_patch.uni_pan = 85u;
+    sf_set_fx_chorus(&dsp.jingle_patch, 98u);
+    sf_set_fx_phaser(&dsp.jingle_patch, 14u);
+    sf_set_fx_phaser_rate(&dsp.jingle_patch, 5u);
+    sf_set_fx_del_time(&dsp.jingle_patch, 28u);
+    sf_set_fx_del_mix(&dsp.jingle_patch, 26u);
+    sf_set_fx_del_fb(&dsp.jingle_patch, 34u);
+    sf_set_fx_reverb(&dsp.jingle_patch, 56u);
+    sf_set_fx_drive(&dsp.jingle_patch, 12u);
+    sf_set_uni_pan(&dsp.jingle_patch, 85u);
+    sf_set_gate_shape(&dsp.jingle_patch, 0u);
     sf_set_tilt_eq(&dsp.jingle_patch, 2);
     sf_set_ms_width_idx(&dsp.jingle_patch, 12); /* 160% stereo width */
     dsp.jingle_idx = 6u;
@@ -768,7 +786,7 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
         for (di = 0u; di < SF_DRUM_VOICES; di++) {
             if (dsp.drums[di].active) active_drums++;
         }
-        uint8_t heavy_fx = (dsp.rev_energy > 0.01f || dsp.del_energy > 0.01f || (dsp.cfg && dsp.cfg->patch.fx_reverb > 25u)) ? 1u : 0u;
+        uint8_t heavy_fx = (dsp.rev_energy > 0.01f || dsp.del_energy > 0.01f || (dsp.cfg && sf_fx_reverb(&dsp.cfg->patch) > 25u)) ? 1u : 0u;
         if (active_drums >= 3u && heavy_fx && max_poly > 5u) max_poly = 5u;
         else if (active_drums >= 2u && max_poly > 6u) max_poly = 6u;
     }
@@ -778,6 +796,12 @@ static PLAT_RAM_CODE void internal_note_on(uint8_t note, uint8_t vel, uint8_t is
         return;
     }
     if (!is_jingle) {
+        uint8_t any_prev = 0u;
+        uint32_t pi;
+        for (pi = 0u; pi < SF_MAX_VOICES; pi++) {
+            if (dsp.voices[pi].active && dsp.voices[pi].gate && !dsp.voices[pi].is_jingle) { any_prev = 1u; break; }
+        }
+        if (!any_prev) dsp.gate_ph = 0.0f;
         if (vmode != 0u) mono_stack_push((int8_t)note);
         else dsp.mono_len = 0u;
     }
@@ -1271,9 +1295,9 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     dsp.lfo2_ph = fast_wrap01(dsp.lfo2_ph + lfo2_hz * (float)n * INV_SR);
     dsp.swarm_ph = fast_wrap01(dsp.swarm_ph + swarm_hz * (float)n * INV_SR);
     dsp.at_vib_ph = fast_wrap01(dsp.at_vib_ph + 5.5f * (float)n * INV_SR);
-    float lfo1 = eval_lfo(dsp.lfo1_ph, sf_lfo1_shape(p)) * ((float)p->lfo1_depth * 0.01f);
-    float lfo2 = eval_lfo(dsp.lfo2_ph, sf_lfo2_shape(p)) * ((float)p->lfo2_depth * 0.01f);
-    float swarm_mod = sf_ram_sin_turns(dsp.swarm_ph) * ((float)p->swarm_depth * 0.0035f);
+    float lfo1 = eval_lfo(dsp.lfo1_ph, sf_lfo1_shape(p)) * ((float)sf_lfo1_depth(p) * 0.01f);
+    float lfo2 = eval_lfo(dsp.lfo2_ph, sf_lfo2_shape(p)) * ((float)sf_lfo2_depth(p) * 0.01f);
+    float swarm_mod = sf_ram_sin_turns(dsp.swarm_ph) * ((float)sf_swarm_depth(p) * 0.0035f);
     float at_vib_sin = sf_ram_sin_turns(dsp.at_vib_ph);
     uint8_t at_dest = dsp.jingle_active ? 5u : (uint8_t)(cfg->at_dest % 6u);
 
@@ -1299,17 +1323,17 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float kf_amt = (float)sf_f_keyfollow(p) * 0.01f;
     float f_bal = (float)sf_f_bal(p) * 0.01f;
 
-    float osc_bal = (float)p->osc_bal * 0.01f;
+    float osc_bal = (float)sf_osc_bal(p) * 0.01f;
     float o1_mix = 1.0f - osc_bal * 0.65f;
     float o2_mix = 0.35f + osc_bal * 0.65f;
     float sub_mix = (float)sf_sub_vol(p) * 0.008f;
     float noise_mix = (float)sf_noise_vol(p) * 0.006f;
-    float ring_mix = (float)p->ring_vol * 0.008f;
+    float ring_mix = (float)sf_ring_vol(p) * 0.008f;
     float fm_amt = (float)sf_fm_amt(p) * 0.012f;
     float pw = sf_clamp(0.08f + (float)p->pw * (0.84f / 127.0f), 0.08f, 0.92f);
     float wt_pos = (float)p->pw * (1.0f / 127.0f);
     float osc2_ratio = sf_ram_exp2f(((float)p->osc2_semi + (float)p->osc2_detune * 0.0078f) * (1.0f / 12.0f));
-    float spread = sf_clamp((float)p->spread * 0.01f + mod_spread * 0.4f, 0.05f, 1.4f);
+    float spread = sf_clamp((float)sf_spread(p) * 0.01f + mod_spread * 0.4f, 0.05f, 1.4f);
     uint8_t osc_mode = sf_osc_mode(p);
     uint8_t sub_wave = sf_sub_wave(p);
     uint8_t f1_type = sf_f1_type(p);
@@ -1318,12 +1342,12 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     uint8_t do_sync = sf_osc_sync(p);
     uint8_t sat_mode = sf_sat_mode(p);
     uint8_t unison = sf_unison(p);
-    float drive_base = 1.0f + (float)p->fx_drive * 0.032f;
-    float amp_d = sf_clamp(((l1d == SF_LFO_AMP ? (float)p->lfo1_depth : 0.0f)
-                          + (l2d == SF_LFO_AMP ? (float)p->lfo2_depth : 0.0f)) * 0.0038f, 0.0f, 0.42f);
+    float drive_base = 1.0f + (float)sf_fx_drive(p) * 0.032f;
+    float amp_d = sf_clamp(((l1d == SF_LFO_AMP ? (float)sf_lfo1_depth(p) : 0.0f)
+                          + (l2d == SF_LFO_AMP ? (float)sf_lfo2_depth(p) : 0.0f)) * 0.0038f, 0.0f, 0.42f);
     float trem = sf_clamp((1.0f - amp_d) + mod_amp * 0.36f, 0.16f, 1.0f);
     float punch_amt = dsp.jingle_active ? 0.0f : (float)sf_punch_pct(p) * 0.01f;
-    float uni_pan_norm = (float)p->uni_pan * 0.01f;
+    float uni_pan_norm = (float)sf_uni_pan(p) * 0.01f;
     float glide_coeff = (sf_glide(p) == 0u) ? 1.0f : sf_clamp(1.0f - (float)sf_glide(p) * 0.0108f, 0.03f, 0.9f);
     dsp.pitch_bend_cur += (dsp.pitch_bend_targ - dsp.pitch_bend_cur) * 0.35f;
     dsp.mod_wheel_cur += (dsp.mod_wheel_targ - dsp.mod_wheel_cur) * 0.25f;
@@ -1603,37 +1627,71 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         dsp.vis.duck_pct = (uint8_t)sf_clamp(dsp.duck_env * duck_amt_f * 100.0f, 0.0f, 100.0f);
     }
 
-    float chor_swing = ((l1d == SF_LFO_CHORUS ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_CHORUS ? (float)p->lfo2_depth : 0.0f)) * 0.0020f;
-    float phas_swing = ((l1d == SF_LFO_PHASER ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_PHASER ? (float)p->lfo2_depth : 0.0f)) * 0.0022f;
-    float del_swing  = ((l1d == SF_LFO_DELAY  ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_DELAY  ? (float)p->lfo2_depth : 0.0f)) * 0.0022f;
-    float rev_swing  = ((l1d == SF_LFO_REVERB ? (float)p->lfo1_depth : 0.0f) + (l2d == SF_LFO_REVERB ? (float)p->lfo2_depth : 0.0f)) * 0.0024f;
+    static const float GATE_SHAPES[12][16] = {
+        {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f},
+        {1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f},
+        {1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f},
+        {0.04f, 0.28f, 0.68f, 1.0f, 0.04f, 0.28f, 0.68f, 1.0f, 0.04f, 0.28f, 0.68f, 1.0f, 0.04f, 0.28f, 0.68f, 1.0f},
+        {1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.7f, 1.0f, 0.0f, 1.0f, 0.0f, 0.85f, 1.0f, 0.0f, 0.7f, 1.0f, 0.0f, 1.0f, 0.8f, 0.0f},
+        {1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},
+        {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f}
+    };
+    static const float GATE_MULT[4] = {2.0f, 4.0f, 6.0f, 8.0f};
+    float safe_bpm = sf_clamp((float)cfg->bpm, 1.0f, 380.0f);
+    uint8_t g_shape = dsp.jingle_active ? 0u : sf_gate_shape(p);
+    float g_depth = dsp.jingle_active ? 0.0f : ((float)sf_gate_depth(p) * 0.01f);
+    float g_smooth = (float)sf_gate_smooth(p) * 0.01f;
+    uint8_t g_rate = sf_gate_rate(p);
+    float g_step_hz = (safe_bpm * (1.0f / 60.0f)) * GATE_MULT[g_rate & 3u];
+    float g_smooth_c = 1.0f - sf_ram_expf(-INV_SR / (0.0008f + g_smooth * 0.025f));
+    float g_ph_inc = g_step_hz * (1.0f / 16.0f) * INV_SR;
 
-    float chor_mix = sf_clamp((float)p->fx_chorus * 0.0065f - sf_clamp(chor_swing * 0.45f, 0.0f, 0.20f)
+    float riser_target = cfg->fx_riser_on ? 1.0f : 0.0f;
+    float riser_rate = cfg->fx_riser_on ? ((safe_bpm * (1.0f / 60.0f)) * 0.125f * INV_SR) : (6.0f * INV_SR);
+    float wash_target = cfg->fx_wash_on ? 1.0f : 0.0f;
+    float wash_rate = cfg->fx_wash_on ? (1.2f * INV_SR) : (18.0f * INV_SR);
+    float w_cut_g = 0.02f + dsp.wash_env * 0.24f;
+
+    float chor_swing = ((l1d == SF_LFO_CHORUS ? (float)sf_lfo1_depth(p) : 0.0f) + (l2d == SF_LFO_CHORUS ? (float)sf_lfo2_depth(p) : 0.0f)) * 0.0020f;
+    float phas_swing = ((l1d == SF_LFO_PHASER ? (float)sf_lfo1_depth(p) : 0.0f) + (l2d == SF_LFO_PHASER ? (float)sf_lfo2_depth(p) : 0.0f)) * 0.0022f;
+    float del_swing  = ((l1d == SF_LFO_DELAY  ? (float)sf_lfo1_depth(p) : 0.0f) + (l2d == SF_LFO_DELAY  ? (float)sf_lfo2_depth(p) : 0.0f)) * 0.0022f;
+    float rev_swing  = ((l1d == SF_LFO_REVERB ? (float)sf_lfo1_depth(p) : 0.0f) + (l2d == SF_LFO_REVERB ? (float)sf_lfo2_depth(p) : 0.0f)) * 0.0024f;
+
+    float chor_mix = sf_clamp((float)sf_fx_chorus(p) * 0.0065f - sf_clamp(chor_swing * 0.45f, 0.0f, 0.20f)
         + (l1d == SF_LFO_CHORUS ? lfo1 * 0.22f : 0.0f) + (l2d == SF_LFO_CHORUS ? lfo2 * 0.16f : 0.0f), 0.0f, 0.68f);
-    float phas_mix = sf_clamp((float)p->fx_phaser * 0.0085f - sf_clamp(phas_swing * 0.40f, 0.0f, 0.18f)
+    float phas_mix = sf_clamp((float)sf_fx_phaser(p) * 0.0085f - sf_clamp(phas_swing * 0.40f, 0.0f, 0.18f)
         + (l1d == SF_LFO_PHASER ? lfo1 * 0.24f : 0.0f) + (l2d == SF_LFO_PHASER ? lfo2 * 0.18f : 0.0f), 0.0f, 0.82f);
     float phas_hz = sf_clamp((float)sf_fx_phaser_rate(p) * 0.1f, 0.1f, 6.0f);
     float del_fb = sf_clamp((float)sf_fx_del_fb(p) * 0.01f, 0.0f, 0.80f);
-    float del_mix = sf_clamp((float)p->fx_del_mix * 0.0072f - sf_clamp(del_swing * 0.55f, 0.0f, 0.22f)
+    float del_mix = sf_clamp((float)sf_fx_del_mix(p) * 0.0072f - sf_clamp(del_swing * 0.55f, 0.0f, 0.22f)
         + (l1d == SF_LFO_DELAY ? lfo1 * 0.20f : 0.0f) + (l2d == SF_LFO_DELAY ? lfo2 * 0.15f : 0.0f), 0.0f, 0.68f);
     float del_rev_feed_g = (l1d == SF_LFO_DELAY || l2d == SF_LFO_DELAY) ? 0.10f : 0.15f;
     float del_sec = 0.30f;
-    if (p->fx_del_time >= 101u && p->fx_del_time <= 106u) {
-        uint8_t sidx = (uint8_t)(p->fx_del_time - 101u);
+    uint8_t del_t = sf_fx_del_time(p);
+    if (del_t >= 101u && del_t <= 106u) {
+        uint8_t sidx = (uint8_t)(del_t - 101u);
         float mult = sidx == 0u ? 0.25f
                    : sidx == 1u ? 0.333333f
                    : sidx == 2u ? 0.50f
                    : sidx == 3u ? 0.75f
                    : sidx == 4u ? 1.00f
                    : 1.50f;
-        float safe_bpm = sf_clamp((float)cfg->bpm, 40.0f, 240.0f);
         del_sec = sf_clamp((60.0f / safe_bpm) * mult, 0.04f, 0.74f);
     } else {
-        del_sec = sf_clamp((float)p->fx_del_time * 0.01f, 0.04f, 0.74f);
+        del_sec = sf_clamp((float)del_t * 0.01f, 0.04f, 0.74f);
     }
     float del_tap_targ = sf_clamp(del_sec * 22050.0f, 400.0f, (float)(DEL_LEN - 8u));
-    float rev_mix = sf_clamp((float)p->fx_reverb * 0.0072f - sf_clamp(rev_swing * 0.55f, 0.0f, 0.24f)
+    float rev_mix = sf_clamp((float)sf_fx_reverb(p) * 0.0072f - sf_clamp(rev_swing * 0.55f, 0.0f, 0.24f)
         + (l1d == SF_LFO_REVERB ? lfo1 * 0.22f : 0.0f) + (l2d == SF_LFO_REVERB ? lfo2 * 0.16f : 0.0f), 0.0f, 0.72f);
+    if (dsp.wash_env > 0.01f) {
+        del_mix = sf_clamp(del_mix + dsp.wash_env * (0.58f - del_mix), 0.0f, 0.72f);
+        rev_mix = sf_clamp(rev_mix + dsp.wash_env * (0.78f - rev_mix), 0.0f, 0.82f);
+    }
     float rev_fb = sf_clamp(0.80f + rev_mix * 0.095f, 0.80f, 0.895f);
 
     float phas_a = -0.48f + 0.38f * sf_ram_sin_turns(dsp.phas_ph);
@@ -1702,6 +1760,52 @@ PLAT_RAM_CODE void sf_dsp_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float xl = block_l[i];
         float xr = block_r[i];
         float del_rev_feed = 0.0f;
+
+        /* Pre-FX EDM Trance Gate */
+        {
+            dsp.gate_ph = fast_wrap01(dsp.gate_ph + g_ph_inc);
+            uint32_t gs = (uint32_t)(dsp.gate_ph * 16.0f) & 15u;
+            float gt = (g_shape == 0u || g_depth <= 0.005f)
+                ? 1.0f
+                : (1.0f - g_depth * (1.0f - GATE_SHAPES[g_shape % 12u][gs]));
+            dsp.gate_env += (gt - dsp.gate_env) * g_smooth_c;
+            xl *= dsp.gate_env;
+            xr *= dsp.gate_env;
+            if (i + 1u == n) dsp.vis.gate_step = (uint8_t)gs;
+        }
+
+        /* SEQ + Key 10 Wash Build HPF sweep */
+        if (cfg->fx_wash_on) {
+            dsp.wash_env = sf_clamp(dsp.wash_env + wash_rate, 0.0f, 1.0f);
+        } else if (dsp.wash_env > 0.0005f) {
+            dsp.wash_env = sf_flush(dsp.wash_env - wash_rate);
+            if (dsp.wash_env < 0.0f) dsp.wash_env = 0.0f;
+        }
+        if (dsp.wash_env > 0.005f) {
+            dsp.wash_lp_l = sf_flush(dsp.wash_lp_l + w_cut_g * (xl - dsp.wash_lp_l));
+            dsp.wash_lp_r = sf_flush(dsp.wash_lp_r + w_cut_g * (xr - dsp.wash_lp_r));
+            float wl_hp = xl - dsp.wash_lp_l;
+            float wr_hp = xr - dsp.wash_lp_r;
+            xl = xl * (1.0f - dsp.wash_env) + wl_hp * dsp.wash_env;
+            xr = xr * (1.0f - dsp.wash_env) + wr_hp * dsp.wash_env;
+        }
+
+        /* SEQ + Key 9 Noise + Pitch Riser (pre-FX for lush reverb/delay tail) */
+        if (cfg->fx_riser_on) {
+            dsp.riser_env = sf_clamp(dsp.riser_env + riser_rate, 0.0f, 1.0f);
+        } else if (dsp.riser_env > 0.0005f) {
+            dsp.riser_env = sf_flush(dsp.riser_env - riser_rate);
+            if (dsp.riser_env < 0.0f) dsp.riser_env = 0.0f;
+        }
+        if (dsp.riser_env > 0.005f) {
+            float r_hz = 110.0f * sf_ram_exp2f(dsp.riser_env * 4.0f);
+            dsp.riser_ph = fast_wrap01(dsp.riser_ph + r_hz * INV_SR);
+            float r_sig = (fast_noise() * 0.55f + (2.0f * dsp.riser_ph - 1.0f) * 0.45f) * dsp.riser_env * 0.24f;
+            xl += r_sig;
+            xr += r_sig;
+        }
+        (void)riser_target;
+        (void)wash_target;
 
         if (do_phas) {
             if ((i & 7u) == 0u) {

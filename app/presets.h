@@ -273,6 +273,171 @@ static inline __attribute__((always_inline)) void sf_set_vel_sens(sf_preset_t *p
     p->noise_vol      = (uint8_t)((p->noise_vol & 0x7Fu)      | (((raw >> 4) & 1u) << 7));
 }
 
+static inline __attribute__((always_inline)) uint8_t sf_osc_bal(const sf_preset_t *p) { return p->osc_bal & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_osc_bal(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->osc_bal = (uint8_t)((p->osc_bal & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_ring_vol(const sf_preset_t *p) { return p->ring_vol & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_ring_vol(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->ring_vol = (uint8_t)((p->ring_vol & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_spread(const sf_preset_t *p) { return p->spread & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_spread(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->spread = (uint8_t)((p->spread & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_uni_pan(const sf_preset_t *p) { return p->uni_pan & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_uni_pan(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->uni_pan = (uint8_t)((p->uni_pan & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_lfo1_depth(const sf_preset_t *p) { return p->lfo1_depth & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_lfo1_depth(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->lfo1_depth = (uint8_t)((p->lfo1_depth & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_lfo2_depth(const sf_preset_t *p) { return p->lfo2_depth & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_lfo2_depth(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->lfo2_depth = (uint8_t)((p->lfo2_depth & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_swarm_depth(const sf_preset_t *p) { return p->swarm_depth & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_swarm_depth(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->swarm_depth = (uint8_t)((p->swarm_depth & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_chorus(const sf_preset_t *p) { return p->fx_chorus & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fx_chorus(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->fx_chorus = (uint8_t)((p->fx_chorus & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_phaser(const sf_preset_t *p) { return p->fx_phaser & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fx_phaser(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->fx_phaser = (uint8_t)((p->fx_phaser & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_del_mix(const sf_preset_t *p) { return p->fx_del_mix & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fx_del_mix(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->fx_del_mix = (uint8_t)((p->fx_del_mix & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_reverb(const sf_preset_t *p) { return p->fx_reverb & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fx_reverb(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->fx_reverb = (uint8_t)((p->fx_reverb & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_drive(const sf_preset_t *p) { return p->fx_drive & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fx_drive(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 100u ? 100u : v;
+    p->fx_drive = (uint8_t)((p->fx_drive & 0x80u) | cl);
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_fx_del_time(const sf_preset_t *p) { return p->fx_del_time & 0x7Fu; }
+static inline __attribute__((always_inline)) void sf_set_fx_del_time(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v < 5u ? 5u : (v > 106u ? 106u : v);
+    p->fx_del_time = (uint8_t)((p->fx_del_time & 0x80u) | cl);
+}
+
+/* Packed Trance Gate (13 bits across bit 7 of 0..100/5..106 fields; ROM 0-bits -> OFF / 85% / 25% / 1/16) */
+static inline __attribute__((always_inline)) uint8_t sf_gate_shape(const sf_preset_t *p)
+{
+    uint8_t raw = (uint8_t)(((p->osc_bal >> 7) & 1u)
+                          | (((p->ring_vol >> 7) & 1u) << 1)
+                          | (((p->spread >> 7) & 1u) << 2)
+                          | (((p->uni_pan >> 7) & 1u) << 3));
+    return raw > 11u ? 0u : raw;
+}
+static inline __attribute__((always_inline)) void sf_set_gate_shape(sf_preset_t *p, uint8_t v)
+{
+    uint8_t cl = v > 11u ? (v % 12u) : v;
+    p->osc_bal  = (uint8_t)((p->osc_bal & 0x7Fu)  | ((cl & 1u) << 7));
+    p->ring_vol = (uint8_t)((p->ring_vol & 0x7Fu) | (((cl >> 1) & 1u) << 7));
+    p->spread   = (uint8_t)((p->spread & 0x7Fu)   | (((cl >> 2) & 1u) << 7));
+    p->uni_pan  = (uint8_t)((p->uni_pan & 0x7Fu)  | (((cl >> 3) & 1u) << 7));
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_gate_depth_idx(const sf_preset_t *p)
+{
+    uint8_t raw = (uint8_t)(((p->lfo1_depth >> 7) & 1u)
+                          | (((p->lfo2_depth >> 7) & 1u) << 1)
+                          | (((p->swarm_depth >> 7) & 1u) << 2)
+                          | (((p->fx_chorus >> 7) & 1u) << 3));
+    return (uint8_t)((raw ^ 11u) & 0x0Fu);
+}
+static inline __attribute__((always_inline)) uint8_t sf_gate_depth(const sf_preset_t *p)
+{
+    static const uint8_t LUT[16] = {0u, 10u, 20u, 30u, 40u, 50u, 60u, 65u, 70u, 75u, 80u, 85u, 90u, 95u, 98u, 100u};
+    return LUT[sf_gate_depth_idx(p) & 0x0Fu];
+}
+static inline __attribute__((always_inline)) void sf_set_gate_depth_idx(sf_preset_t *p, int32_t idx)
+{
+    int32_t cl = idx < 0 ? 0 : (idx > 15 ? 15 : idx);
+    uint8_t raw = (uint8_t)(((uint32_t)cl ^ 11u) & 0x0Fu);
+    p->lfo1_depth  = (uint8_t)((p->lfo1_depth & 0x7Fu)  | ((raw & 1u) << 7));
+    p->lfo2_depth  = (uint8_t)((p->lfo2_depth & 0x7Fu)  | (((raw >> 1) & 1u) << 7));
+    p->swarm_depth = (uint8_t)((p->swarm_depth & 0x7Fu) | (((raw >> 2) & 1u) << 7));
+    p->fx_chorus   = (uint8_t)((p->fx_chorus & 0x7Fu)   | (((raw >> 3) & 1u) << 7));
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_gate_smooth_idx(const sf_preset_t *p)
+{
+    uint8_t raw = (uint8_t)(((p->fx_phaser >> 7) & 1u)
+                          | (((p->fx_del_mix >> 7) & 1u) << 1)
+                          | (((p->fx_reverb >> 7) & 1u) << 2));
+    return (uint8_t)((raw ^ 3u) & 7u);
+}
+static inline __attribute__((always_inline)) uint8_t sf_gate_smooth(const sf_preset_t *p)
+{
+    static const uint8_t LUT[8] = {0u, 10u, 20u, 25u, 35u, 50u, 70u, 90u};
+    return LUT[sf_gate_smooth_idx(p) & 7u];
+}
+static inline __attribute__((always_inline)) void sf_set_gate_smooth_idx(sf_preset_t *p, int32_t idx)
+{
+    int32_t cl = idx < 0 ? 0 : (idx > 7 ? 7 : idx);
+    uint8_t raw = (uint8_t)(((uint32_t)cl ^ 3u) & 7u);
+    p->fx_phaser  = (uint8_t)((p->fx_phaser & 0x7Fu)  | ((raw & 1u) << 7));
+    p->fx_del_mix = (uint8_t)((p->fx_del_mix & 0x7Fu) | (((raw >> 1) & 1u) << 7));
+    p->fx_reverb  = (uint8_t)((p->fx_reverb & 0x7Fu)  | (((raw >> 2) & 1u) << 7));
+}
+
+static inline __attribute__((always_inline)) uint8_t sf_gate_rate(const sf_preset_t *p)
+{
+    uint8_t raw = (uint8_t)(((p->fx_drive >> 7) & 1u) | (((p->fx_del_time >> 7) & 1u) << 1));
+    return (uint8_t)((raw ^ 1u) & 3u);
+}
+static inline __attribute__((always_inline)) void sf_set_gate_rate(sf_preset_t *p, uint8_t v)
+{
+    uint8_t raw = (uint8_t)(((v & 3u) ^ 1u) & 3u);
+    p->fx_drive    = (uint8_t)((p->fx_drive & 0x7Fu)    | ((raw & 1u) << 7));
+    p->fx_del_time = (uint8_t)((p->fx_del_time & 0x7Fu) | (((raw >> 1) & 1u) << 7));
+}
+
 static inline __attribute__((always_inline)) uint8_t sf_arp_mode(const sf_preset_t *p) { return p->arp_meta & 3u; }
 static inline __attribute__((always_inline)) uint8_t sf_arp_rate(const sf_preset_t *p) { return (p->arp_meta >> 2) & 3u; }
 static inline __attribute__((always_inline)) uint8_t sf_arp_octs(const sf_preset_t *p) { return ((p->arp_meta >> 4) & 3u) + 1u; }

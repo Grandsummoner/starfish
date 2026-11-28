@@ -1,147 +1,68 @@
 # STARFISH for M-VAVE FM-1
-**An 8-Voice Virtual Analog & Hypersaw Synthesizer · Dual Multimode Filters · 4-Icon FX Rack · 10-Kit Drum Sequencer · 288 Curated Presets + 128 User Flash Slots**
 
-![STARFISH Project Preview](docs/img/starfish-overview.png)
+**8-Voice Virtual Analog & Hypersaw Synthesizer · Dual Multimode Filters · 4-Icon FX Rack · 10-Kit Drum Sequencer · 288 Curated Presets + 128 Bank X Flash Slots**
 
-STARFISH transforms the **M-VAVE FM-1** into a portable synthesizer and groovebox, featuring an expanded sound engine, expressive effects, extensive preset management and an integrated drum sequencer.
-
----
-
-## 🚀 Explore STARFISH
-
-**Everything is accessible directly through your browser.**
-
-| Resource | Description |
-|:---|:---|
-| 🌐 **[Emulator](https://grandsummoner.github.io/starfish/emu/)** | Experience it over a web emulator. |
-| 🌐 **[Installer](https://grandsummoner.github.io/starfish/)** | Install STARFISH firmware over USB-MIDI, restore stock firmware and inspect device crash reports. |
-| 📖 **[User Guide](https://grandsummoner.github.io/starfish/guide.html)** | Explore hardware controls, OLED simulations, the drum sequencer, all 288 presets and MIDI routing. |
-
-All three applications share a common navigation bar for easy switching between the installer, guide and promotional showcase.
+STARFISH turns the **M-VAVE FM-1** into a complete portable groovebox built on [`fm1-base`](https://github.com/charlesvestal/fm1-base) and [`felucca-bsp`](https://github.com/hugelton/felucca-bsp).
 
 ---
 
-## 🎹 Synthesizer & Sound Engine
+## Web Installer & User Guide (GitHub Pages)
 
-**Core implementation:** `app/dsp.c`, `app/presets.h`, `app/presets_rom.h`
+> **Primary README link:** [`https://grandsummoner.github.io/starfish/`](https://grandsummoner.github.io/starfish/) (`index.html` — Web MIDI Firmware Installer)
 
-- **8-Voice Dual Oscillator Engine (`EDIT 1/3–3/3`):** HYPERSAW, SAW, PULSE, TRIANGLE, HARD SYNC and WAVETABLE, with Sub-Oscillator (SQUARE / SINE / SAWTOOTH), Noise, Ring Modulation, FM cross-modulation and up to 5-voice Unison spread.
-- **Dual Resonant Filters (`HOME 1/3` & `SEL 1/2–2/2`):** CUTOFF 1/2 and RESO 1/2 on `HOME 1/3`, LP/BP/HP/NOTCH modes with Serial, Parallel and Split routing + Filter Balance (`SEL 1/2`), and F-ENV, KEYFLW, F2 ENV (-100% to +100%) and VEL SENS (0–100%) on `SEL 2/2`, including real-time OLED frequency-response plotting.
-- **Per-Patch Processing (`HOME 2/3`):** Auto-saved PATCH GAIN (-12 to +12 dB), TILT EQ (-7 to +7), M/S WIDTH (0–200%) and transient PUNCH (0–100%).
-- **Scales, Themes, Voice Mode & Randomizer (`GLO 1/4–3/4`):** Root, 12 musical Scales, 5 Chord Memory modes and Master Tempo (40–240 BPM) on `GLO 1/4`; 8 unified OLED + Starfish colour themes (`MONOLITH` mono to `PRISM` rainbow and generative `RANDOM`), `VOICE MODE` (`POLY` / `MONO` / `LEGATO`), `POLY` (1V–8V) and `AT DEST` (`CUTOFF` / `VIBRATO` / `RESO` / `DRIVE` / `AMP` / `OFF`) on `GLO 2/4`; Styled Patch Randomizer (8 styles + CHAOS) with Bank X slot selection on `GLO 3/4`.
-- **9-Mode Arpeggiator (`ARP 1/2–2/2`):** BPM-synchronised rates (1/4 to 1/32T) with UP, DOWN, UP/DN, RAND, RND WLK, ORDER and ROTATE (S/M/F), Latch, 1–3 Octaves, Density, Gate and Accent.
+- **[`index.html`](https://grandsummoner.github.io/starfish/)** (and `web-installer/index.html`) — **Web MIDI Firmware Installer** *(Main Landing Page)*. Open in Chrome or Edge to install `starfish.fwsc` directly over USB-MIDI, restore M-VAVE stock firmware, or read device crash reports.
+- **[`guide.html`](https://grandsummoner.github.io/starfish/guide.html)** — **Interactive HTML User Guide**. Explore all hardware buttons and live 240×240 OLED visualizations (including the 4-box FX icons), test the 27-key drum sequencer layout, search all **288 ROM presets**, and review USB/Bluetooth MIDI routing.
 
-### 4-Icon Effects Rack
-
-The FX interface features four animated OLED visualisation boxes, inspired by [Vinish's Free VFX sprite collection](https://vinish.dev/free-vfx).
-
-Visual themes include water ripples, force-field arcs, comet echoes, magic aura embers, beam splitters, spiral portal vortexes, lightning crests and flame cores.
-
-Available effects:
-
-- BBD Chorus
-- Phaser
-- BPM-synchronised Stereo Delay
-- Reverb
-- Analog Saturation (SOFT / TUBE / HARD / OFF)
-
-### Modulation
-
-- **Dual ADSR Envelopes:** Dedicated Amp and Filter envelopes with live trigger tracing.
-- **Dual Independent LFOs & Swarm Drift:** CUT1, CUT2, RESO, PITCH, PAN, SPREAD, AMP, CHORUS, PHASER, DELAY and REVERB destinations, plus Analog Swarm Drift.
-- **Expressive Aftertouch (`GLO 2/4`):** Polyphonic keybed touch pressure and MIDI Poly/Channel Aftertouch routable to Filter 1 Cutoff, Vibrato, Resonance, Saturation Drive, Amplitude or Off.
-- **Automatic Protection:** FX and amplifier headroom protection.
+Both pages share the same theme, layout, Light/Dark toggle, and top-bar links. With **Settings → Pages → Source: GitHub Actions** enabled, `.github/workflows/release.yml` automatically compiles `starfish.fwsc` and publishes `index.html` and `guide.html` together.
 
 ---
 
-## 💾 Preset Management & Memory
+## Synth, Effects & Sequencer Architecture
 
-### Factory ROM — 288 Curated Presets
+### Sound Engine (`app/dsp.c`, `app/presets.h`, `app/presets_rom.h`)
+- **Dual Oscillators (8 Voices):** `HYPERSAW`, `SAW`, `PULSE`, `TRIANGLE`, `HARD SYNC`, and `WAVETABLE`, plus Sub-Oscillator (`SQR/SAW/SIN/TRI`), Noise, Ring Modulation, FM cross-mod, and up to 5-voice Unison spread.
+- **Dual Resonant Filters:** `LP`, `BP`, `HP`, `NOTCH` arranged in **Serial**, **Parallel**, or **Split** routing with real-time OLED frequency-response plotting.
+- **Per-Patch Stage (`HOME 2/3`):** Auto-saved `PATCH GAIN` (`-12..+12 dB`), pivoting `TILT EQ` (`-7..+7`), Mid/Side `M/S WIDTH` (`0..200%`), and transient `PUNCH` (`0..100%`).
+- **4-Icon FX Rack (`FX 1/2` & `FX 2/2`):** Horizontal row of 4 calm animated OLED boxes inspired by [`vinish.dev/free-vfx`](https://vinish.dev/free-vfx) sprites (water ripples, force-field arc, comet echoes, magic aura embers, beam splitter, spiral portal vortex, lightning crest, and flame/ember core) for BBD Chorus, Phaser, BPM-synced Stereo Delay, Reverb, and Analog Saturation (`SOFT / TUBE / HARD / OFF`).
+- **Dual ADSR Envelopes & Dual LFOs:** Dedicated Amp + Filter ADSR curves with live trigger tracer, plus 2 independent LFOs (`CUT1`, `CUT2`, `RESO`, `PITCH`, `PAN`, `SPREAD`, `AMP`, `CHORUS`, `PHASER`, `DELAY`, `REVERB`) with automatic FX & amp headroom protection.
 
-Nine read-only banks organised by sound category:
+### Preset Memory & Read-Only ROM Protection
+- **ROM Banks `A–I` (288 Curated Presets):** Organized by role (`A` Pads, `B` Leads, `C` Bass, `D` Plucks, `E` Keys/Organs, `F` Arps, `G` Wobbles, `H` FX/Drones, `I` Starfish Originals). Factory ROM banks stay read-only when saving (`SAVE` routes edits into User `BANK X`).
+- **User Flash Bank `X` (`X000–X127`):** Stores custom patches, randomized patches, and sequence edits on flash.
+- **Per-Patch Auto-Saved Gain:** Turning `PATCH GAIN` on `HOME 2/3` auto-saves per preset without overwriting factory synth parameters.
 
-| Bank | Sound Category |
-|:---:|:---|
-| A | Pads |
-| B | Leads |
-| C | Bass |
-| D | Plucks |
-| E | Keys / Organs |
-| F | Arpeggios |
-| G | Wobbles |
-| H | FX / Drones |
-| I | STARFISH Originals |
-
-Factory ROM banks remain read-only. Saving edited sounds routes them into the user flash bank instead.
-
-### User Flash Bank X
-
-- 128 writable patch slots: `X000–X127`
-- Stores custom patches and randomised patches.
-- Supports drum and live synth loop sequence edits.
-- Per-patch gain settings are automatically saved without overwriting factory synth parameters.
+### 8-Track Drum Machine, Sequencer, Combos & Boot/About (`SEQ`, `ARP`, `HOME 3/3`)
+- **STARFISH Bootup & `OCT- + OCT+` About App:** Features a **STARFISH** OLED banner across 6 boot scenes; pressing `OCT-` and `OCT+` together plays a chorusy 3-voice Hypersaw Cmaj9 shimmer (`sf_dsp_start_easter_egg`) and opens the **About App** overview page.
+- **10 Drum Kits:** `TR-808`, `TR-909`, `FM ACOUSTIC`, `CRISP DIGI`, `GLITCH`, `INDUSTRIAL`, `ANALOG`, `ACOUSTIC`, `8-BIT`, and `STARFISH`.
+- **27-Key Touch Interface:** In `SEQ` mode, upper black keys `0–7` select drum voices (`BD..RS`), bottom 16 white keys toggle steps `1–16` across `1–4` bars, and the top-right key mutes/clears tracks. In Synth mode, recorded notes illuminate corresponding capsule keys during playback.
+- **Global Mix (`HOME 3/3`):** `SYNTH LVL`, sidechain `KICK DUCK`, `DUCK SRC` (`KICK / KICK+SD / ALL DRM`), and `DRM LVL`.
+- **Audio & Bluetooth I/O (`GLO 4/4` & `GLO+HOME`):** USB Audio outputs full 44.1 kHz signal independently from hardware `OUT LEVEL` (`AUTO 0dB`, `LINE -6dB`, `BOOST +3dB`). Hold `GLO + HOME` to open BLE MIDI device scan; toggle BT MIDI role or OFF on `GLO 4/4`.
 
 ---
 
-## 🥁 Drum Machine & Sequencer
+## Building the `.fwsc` Package
 
-### 10 Integrated Drum Kits
+### Option 1 — Automated GitHub Actions Build (Recommended)
+1. Push this directory to a GitHub repository (`main` or `master`, or tag `git tag v1.0 && git push origin v1.0`).
+2. **Build and Release** compiles `starfish.fwsc`, runs `tests/run_tests.sh`, publishes the release binary, and deploys `index.html` + `guide.html` to GitHub Pages.
 
-`TR-808` · `TR-909` · `FM ACOUSTIC` · `CRISP DIGI` · `GLITCH` · `INDUSTRIAL` · `ANALOG` · `ACOUSTIC` · `8-BIT` · `STARFISH`
+### Option 2 — Local Linux / macOS Build
+Clone `fm1-base` into `base/` with the JieLi `pi32v2` toolchain and AC79 SDK configured:
 
-### 27-Key Touch Sequencer
+```bash
+bash ./build.sh --release 1.0
+# Output: app/build/starfish-1.0.fwsc
+```
 
-The touch interface provides dedicated controls for drum selection and step programming (`SEQ 1/3–3/3`).
+Host simulator check (uses local GCC/Clang without embedded SDK):
 
-- Upper 8 black keys: Select drum voices (BD–RS) and per-voice Tune, Decay, Tone and Level.
-- Bottom 16 white keys: Toggle sequencer steps 1–16 across 1–4 bars or SYNC SEQ.
-- Top-right key (`MUTE/CLR`): Tap to mute track, hold 0.6s to clear track.
-- Sequencer engine (`SEQ 2/3–3/3`): Euclidean rhythm generator, Swing (50–75%), 12 built-in drum patterns (`TECHNO`–`GARAGE` + `CUSTOM`), and Quantized/Free live synth loop recording (`REC`).
-- Synth mode: Recorded notes illuminate corresponding capsule keys during playback.
-
-### Global Mixing (HOME 3/3)
-
-- SYNTH LVL
-- KICK DUCK sidechain
-- DUCK SRC (BD / SD / CH / OH / CP / TM / RD / RS)
-- DRM LVL
+```bash
+bash ./build.sh --host
+./app/build/host/starfish_host tests/basic.txt app/build/host
+```
 
 ---
 
-## 🔊 Audio, MIDI & Connectivity
+## License
 
-### USB Audio
-
-- Full 44.1 kHz USB Audio and USB-MIDI output.
-- Independent hardware speaker/headphone `OUT LEVEL` control (`GLO 4/4`).
-- Output levels: AUTO 0dB, LINE -6dB and BOOST +3dB.
-
-### Bluetooth MIDI
-
-- Hold `GLO + HOME` to open the BLE MIDI device scanner.
-- Configure `BT MIDI` role (`PC + KYBD`, `KYBD HOST`, `PC DEVICE`, `OFF`), `SYNTH CH` (`OMNI` / `1–16`) and `DRUM CH` (`OFF` / `1–16`) on `GLO 4/4`.
-
----
-
-## ✨ STARFISH Boot Experience & Easter Egg
-
-The STARFISH boot sequence features an OLED banner across six boot scenes.
-
-An additional hidden feature is accessible through the OCT- and OCT+ buttons:
-
-- Press both buttons together.
-- Plays a chorus-enhanced three-voice Hypersaw Cmaj9 shimmer.
-- Opens the About App overview page.
-
-Implementation: `sf_dsp_start_easter_egg`
-
----
-
-## 📜 Credits & License
-
-**License:** [Mozilla Public License 2.0 (MPL-2.0)](LICENSE)
-
-STARFISH builds upon the following projects:
-
-- [FM1 Base Firmware](https://github.com/charlesvestal/fm1-base)
-- [Felucca Board Support Package](https://github.com/hugelton/felucca-bsp)
+Licensed under **MPL-2.0** (see `LICENSE`). Built on `fm1-base` and `felucca-bsp`.

@@ -44,7 +44,7 @@ enum {
 
 typedef struct {
     sf_preset_t patch;
-    uint16_t bpm;              /* 40..240 */
+    uint16_t bpm;              /* 1..380 */
     uint8_t swing;             /* 50..75 (%) */
     uint16_t seq_length;       /* 1..256 */
     uint8_t drum_kit;          /* 0..9 */
@@ -70,6 +70,8 @@ typedef struct {
     uint8_t arp_accent;        /* 0..100 (%) */
     uint8_t rand_chaos;        /* 20..100 */
     uint8_t rand_style;        /* 0..7 */
+    uint8_t fx_riser_on;       /* 0..1 SEQ+Key9 noise+pitch riser */
+    uint8_t fx_wash_on;        /* 0..1 SEQ+Key10 HPF+wash build */
     uint8_t seq_pat[SF_DRUM_VOICES][SF_SEQ_STEPS]; /* 0=off,1=hit,2=accent */
     uint8_t drum_mute;         /* bitmask 0..7 */
     int8_t drum_tune[SF_DRUM_VOICES];   /* -12..+12 st */
@@ -95,6 +97,7 @@ typedef struct {
     uint8_t flt_st;
     uint8_t del_lvl_pct;
     uint8_t rev_lvl_pct;
+    uint8_t gate_step;
 } sf_dsp_vis_t;
 
 void sf_dsp_init(sf_engine_cfg_t *cfg);

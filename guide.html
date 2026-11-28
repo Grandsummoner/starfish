@@ -652,7 +652,8 @@
           <li><strong>USB Audio Independence:</strong> The physical speaker/headphone amplifier level is controlled on <code>GLO 4/4 → K4 (OUT LEVEL)</code> (`AUTO 0dB`, `LINE -6dB`, `BOOST +3dB`) while USB Audio stays at full 44.1 kHz studio line level.</li>
           <li><strong>USB Synth + Drum Mix:</strong> <code>HOME 3/3</code> balances global <code>SYNTH LVL</code>, <code>KICK DUCK</code> (sidechain compression depth), <code>DUCK SRC</code> (any of the 8 drum voices <code>BD..RS</code>), and <code>DRM LVL</code>.</li>
           <li><strong>Bluetooth MIDI (REC / GLO+HOME):</strong> Hold <code>GLO + HOME</code> to open the BLE scan/connect list for wireless keyboards or computers; toggle BT radio and routing (`PC + KYBD`, `KYBD HOST`, `PC DEVICE`, `OFF`) on <code>GLO 4/4 → K3</code>.</li>
-          <li><strong>Hardware Combos &amp; Easter Eggs:</strong> Press <code>OCT- + OCT+</code> together for the <strong>STARFISH About App</strong> page &amp; Chorusy Cmaj9 shimmer; hold <code>HOME + SEL</code> for A/B Patch Compare; hold <code>GLO + ARP</code> for Disco Starfish; hold <code>ARP + OCT+/-</code> for Arp Latch.</li>
+          <li><strong>Hardware Combos &amp; Easter Eggs:</strong> Press <code>OCT- + OCT+</code> together for the <strong>STARFISH About App</strong> page &amp; Chorusy Cmaj9 shimmer; hold <code>HOME + SEL</code> for A/B Patch Compare; press <code>HOME + SAVE</code> (or hold <code>HOME</code> 0.45s) for <strong>Live Memory Lock</strong> and 1-tap <code>SAVE</code> snap-back; hold <code>GLO + ARP</code> for Disco Starfish; hold <code>ARP + OCT+/-</code> for Arp Latch; hold <code>REC + Knob/SELECT</code> to adjust Synth Recording Bars (1–16).</li>
+          <li><strong>SEQ Live Fills &amp; Transitions:</strong> While playing, hold <code>SEQ + Black Keys 1–8</code> (<code>C#..F#2</code>) for <code>1/32</code> multi-track drum rolls, <code>SEQ + Black Key 9</code> (<code>G#2</code>) for a Riser build, and <code>SEQ + Black Key 10</code> (<code>A#2</code>) for a Wash transition.</li>
           <li><strong>Channel Assignment:</strong> <code>GLO 4/4</code> sets Synth RX/TX MIDI channel (K1: OMNI / 1–16) and Drum MIDI channel (K2: OFF / 1–16).</li>
         </ul>
       </div>
@@ -740,9 +741,9 @@
     FX: {
       subs: [
         {
-          title: "FX RACK MIX (1/2)",
+          title: "FX RACK MIX (1/3)",
           sub: "Horizontal 4-box FX rack with calm VFX-inspired icons: Chorus · Phaser · Delay · Reverb",
-          note: "Calm animated water ripples, force-field arcs, comet echoes, and aura ember sprites convey live depth without strobing. Press FX again for page 2/2.",
+          note: "Calm animated water ripples, force-field arcs, comet echoes, and aura ember sprites convey live depth without strobing. Press FX again for pages 2/3 & 3/3.",
           knobs: [
             { name: "CHORUS", min: 0, max: 100, val: 48, unit: "%", fmt: v => `${v}%`, desc: "BBD-style stereo chorus ensemble depth (water-ripple wave arcs)." },
             { name: "PHASER", min: 0, max: 100, val: 35, unit: "%", fmt: v => `${v}%`, desc: "All-pass phaser wet mix (gliding force-field filament arc)." },
@@ -751,7 +752,7 @@
           ]
         },
         {
-          title: "DLY MIX & SAT (2/2)",
+          title: "DLY MIX & SAT (2/3)",
           sub: "Horizontal 4-box FX rack: Delay Mix · Delay Feedback · Phaser Rate · Saturation",
           note: "Knob 4 selects Soft, Tube, Hard, or Bypass analog waveshaping shown on the flame/ember core sprite.",
           knobs: [
@@ -759,6 +760,17 @@
             { name: "DLY FB", min: 0, max: 95, val: 38, unit: "%", fmt: v => `${v}%`, desc: "Delay regeneration feedback up to 95% (spiral portal vortex sparks)." },
             { name: "PHS HZ", min: 1, max: 60, val: 12, unit: "", fmt: v => `${(v*0.1).toFixed(1)}Hz`, desc: "Phaser sweep oscillator speed from 0.1 Hz to 6.0 Hz (lightning crest sweep)." },
             { name: "SAT TYPE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["SOFT","TUBE","HARD","OFF"][v], desc: "Selects Soft Clip, Warm Tube, Hard Drive, or Bypass saturation (flame/ember core)." }
+          ]
+        },
+        {
+          title: "TRANCE GATE (3/3)",
+          sub: "BPM-synced 16-step EDM amplitude & filter rhythmic gate",
+          note: "Synced tight to the master clock (1–380 BPM). Saved per patch into User Bank X.",
+          knobs: [
+            { name: "SHAPE", min: 0, max: 11, val: 2, unit: "", fmt: v => ["OFF","1/16 PMP","TRANCE 1","TRANCE 2","SIDECHN","STUTTER","EURO","TRIPLET","OFFBEAT","GALLOP","SYNCOP","HLD CHOP"][v], desc: "Bypass (OFF) or 11 signature EDM/Trance rhythmic gate patterns." },
+            { name: "DEPTH", min: 0, max: 15, val: 11, unit: "%", fmt: v => `${[0,10,20,30,40,50,60,65,70,75,80,85,90,95,98,100][v]}%`, desc: "Gate attenuation depth (0% subtle pumping to 100% razor chop)." },
+            { name: "SMOOTH", min: 0, max: 7, val: 3, unit: "%", fmt: v => `${[0,10,20,25,35,50,70,90][v]}%`, desc: "Slew smoothing between steps to shape crisp clicks vs. soft swells." },
+            { name: "RATE", min: 0, max: 3, val: 1, unit: "", fmt: v => ["1/8","1/16","1/16T","1/32"][v], desc: "Clock-locked gate step division (1/8, 1/16, 1/16 Triplet, or 1/32)." }
           ]
         }
       ]
@@ -903,7 +915,7 @@
           ]
         },
         {
-          title: "ARP GROOVE (2/2)",
+          title: "ARP GROOVE (2/3)",
           sub: "Octave range, Euclidean density, gate length & accent",
           note: "Lower Density drops off-beat steps for instant syncopated grooves.",
           knobs: [
@@ -911,6 +923,17 @@
             { name: "DENSITY", min: 10, max: 100, val: 100, unit: "%", fmt: v => `${v}%`, desc: "Step trigger probability / rhythmic density." },
             { name: "GATE", min: 20, max: 95, val: 72, unit: "%", fmt: v => `${v}%`, desc: "Note duration before gate off." },
             { name: "ACCENT", min: 0, max: 100, val: 35, unit: "%", fmt: v => `${v}%`, desc: "Downbeat velocity & cutoff boost." }
+          ]
+        },
+        {
+          title: "PROGRESSIONS (3/3)",
+          sub: "4–16 bar evolving EDM/Trance chord engine locked to Root & Scale",
+          note: "Hold ARP (0.42s) on ARP 3/3 to toggle Progressions ON/OFF. KEY TRIG triggers while keys are held; AUTO OVR runs automatically while letting keys take over cleanly; AUTO LEAD plays free lead notes above auto-backing.",
+          knobs: [
+            { name: "STYLE", min: 0, max: 16, val: 1, unit: "", fmt: v => ["OFF","01 UPLIFT","02 FESTIVAL","03 ANJUNA","04 EUPHORIA","05 STADIUM","06 DARK PSY","07 MELO TECH","08 DEEP HSE","09 SYNTHWV","10 EURO 90S","11 CHILL","12 PROG ROLL","13 DREAM","14 ACID HYP","15 CYBER","16 ANTHEM"][v], desc: "16 Trance & EDM progression styles with Intro, Verse, Bridge, Break, Chorus & End variation." },
+            { name: "BARS", min: 4, max: 16, val: 8, unit: "", fmt: v => `${v} BAR`, desc: "Looping arrangement span (4 to 16 bars)." },
+            { name: "VOICING", min: 0, max: 3, val: 2, unit: "", fmt: v => ["CLOSE","OPEN 5TH","VOICE LD","OCT BASS"][v], desc: "Chord inversion & bass spread voicing algorithm." },
+            { name: "MODE", min: 0, max: 2, val: 1, unit: "", fmt: v => ["KEY TRIG","AUTO OVR","AUTO LEAD"][v], desc: "Defines capsule-key role: Key Trigger vs. Auto + Overwrite vs. Auto + Solo Lead." }
           ]
         }
       ]
@@ -942,11 +965,11 @@
         {
           title: "LOOP & BARS (3/3)",
           sub: "Bar view selector, independent drum loop length, synth rec bars & quantize",
-          note: "REC BARS and REC SYNC control both multi-bar synth looper recording and SYNC SEQ drum loop length.",
+          note: "REC BARS sets synth loop length (1–16 bars) and SYNC SEQ drum length. Shortcut: hold REC + turn any knob (K1–K4) or SELECT from any Synth page.",
           knobs: [
             { name: "VIEW BAR", min: 1, max: 4, val: 1, unit: "", fmt: v => `BAR ${v}`, desc: "Selects which 16-step page (BAR 1..4) is shown on the OLED and white keys." },
             { name: "DRM LOOP", min: 0, max: 4, val: 0, unit: "", fmt: v => ["1 BAR","2 BAR","3 BAR","4 BAR","SYNC SEQ"][v], desc: "Drum pattern length (1–4 bars independent, or locked to REC BARS)." },
-            { name: "REC BARS", min: 1, max: 16, val: 1, unit: "", fmt: v => `${v} BAR`, desc: "Synth loop recording length (1 to 16 bars)." },
+            { name: "REC BARS", min: 1, max: 16, val: 1, unit: "", fmt: v => `${v} BAR`, desc: "Synth loop recording length (1 to 16 bars). Shortcut: Hold REC + Knob/SELECT." },
             { name: "REC SYNC", min: 0, max: 1, val: 1, unit: "", fmt: v => v?"QUANT":"FREE", desc: "Quantizes synth loop recording to 16th/bar timing or free unquantized." }
           ]
         }
@@ -956,13 +979,13 @@
       subs: [
         {
           title: "SCALE & TEMPO (1/4)",
-          sub: "12 musical scales, root note, one-finger chords & master tempo",
-          note: "CHORD sits on K3 and Master TEMPO (40–240 BPM) sits on K4, keeping tempo separated from scale browsing with zero duplicate BPM knobs elsewhere.",
+          sub: "12 musical scales, root note, one-finger chords & 1–380 BPM master tempo",
+          note: "CHORD sits on K3 and Master TEMPO (1–380 BPM) sits on K4, synced cleanly across Sequencer, Arp, Progressions, Trance Gate & Delay.",
           knobs: [
-            { name: "ROOT", min: 0, max: 11, val: 0, unit: "", fmt: v => ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][v], desc: "Root key for Scale Lock and Chord trigger." },
+            { name: "ROOT", min: 0, max: 11, val: 0, unit: "", fmt: v => ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][v], desc: "Root key for Scale Lock, Chord trigger & Progressions." },
             { name: "SCALE", min: 0, max: 11, val: 0, unit: "", fmt: v => ["CHROM","MAJOR","NAT MIN","HARM MIN","MEL MIN","DORIAN","PHRYG","LYDIAN","MIXOL","LOCRIAN","MAJ PNT","MIN PNT"][v], desc: "12 quantized musical scales." },
             { name: "CHORD", min: 0, max: 4, val: 0, unit: "", fmt: v => ["OFF","OCTAVE","FIFTH","MIN 7","MAJ 7"][v], desc: "One-key chord generator mode." },
-            { name: "TEMPO", min: 40, max: 240, val: 120, unit: "BPM", fmt: v => `${v} BPM`, desc: "Master sequencer, arpeggiator, and delay clock (40–240 BPM)." }
+            { name: "TEMPO", min: 1, max: 380, val: 122, unit: "BPM", fmt: v => `${v} BPM`, desc: "Master sequencer, arpeggiator, progression, trance gate & delay clock (1–380 BPM)." }
           ]
         },
         {
@@ -1329,7 +1352,78 @@
 
     // Center Stage Visualization matching hardware
     const ks = spec.knobs;
-    if (curPage === "FX") {
+    if (curPage === "FX" && curSub === 2) {
+      const shapes = [
+        [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],
+        [100,0,100,0,100,0,100,0,100,0,100,0,100,0,100,0],
+        [100,0,100,100,0,100,0,100,100,0,100,100,0,100,0,100],
+        [100,100,0,100,0,100,100,0,100,0,100,0,100,100,0,100],
+        [4,28,68,100,4,28,68,100,4,28,68,100,4,28,68,100],
+        [100,0,100,0,100,100,100,0,100,0,100,0,100,100,100,100],
+        [100,0,70,100,0,100,0,85,100,0,70,100,0,100,80,0],
+        [100,0,0,100,0,0,100,0,100,0,0,100,0,0,100,0],
+        [0,0,100,100,0,0,100,100,0,0,100,100,0,0,100,100],
+        [100,0,100,100,100,0,100,100,100,0,100,100,100,0,100,100],
+        [100,0,0,100,0,0,100,0,0,100,100,0,100,0,0,100],
+        [100,100,100,0,0,100,100,0,100,100,100,0,0,100,0,100]
+      ];
+      const gs = ks[0].val;
+      const gOn = gs > 0;
+      const depthLut = [0,10,20,30,40,50,60,65,70,75,80,85,90,95,98,100];
+      const gDepth = (depthLut[ks[1].val] || 0) / 100;
+      const playStep = Math.floor(t * 8) % 16;
+      ctx.fillStyle = gOn ? "rgba(232,121,249,0.16)" : "#141b29";
+      ctx.fillRect(10, 86, 134, 16);
+      ctx.fillStyle = gOn ? "#f5d0fe" : "#94a3b8";
+      ctx.font = "800 9px monospace";
+      ctx.fillText(`GATE: ${ks[0].fmt(gs)}`, 14, 97, 126);
+      ctx.fillStyle = gOn ? "#e879f9" : "#64748b";
+      ctx.textAlign = "right";
+      ctx.fillText(`${ks[3].fmt(ks[3].val)} · D${ks[1].fmt(ks[1].val)}`, W - 10, 97, 86);
+      ctx.textAlign = "left";
+      for (let si = 0; si < 16; si++) {
+        const sv = (shapes[gs]?.[si] ?? 100) / 100;
+        const eff = gOn ? 1 - gDepth * (1 - sv) : 1;
+        const bh = Math.max(4, Math.round(eff * 48));
+        const bx = 10 + si * 13.75;
+        const isCur = gOn && si === playStep;
+        ctx.fillStyle = "#111826"; ctx.fillRect(bx, 108, 11.5, 48);
+        ctx.fillStyle = isCur ? "#ffffff" : !gOn ? "#334155" : sv >= 0.7 ? (si % 4 === 0 ? "#e879f9" : "#22d3ee") : sv >= 0.2 ? "#a78bfa" : "#1e293b";
+        ctx.fillRect(bx, 156 - bh, 11.5, bh);
+        if (isCur) { ctx.fillStyle = "#fbbf24"; ctx.fillRect(bx, 158, 11.5, 2.5); }
+      }
+    } else if (curPage === "ARP" && curSub === 2) {
+      const totalBars = Math.max(4, Math.min(16, ks[1].val));
+      const curBar = Math.floor(t * 0.6) % totalBars;
+      const chordSeq = ["Am7","Fmaj7","Csus2","G","Dm7","Bb","Em","G6"];
+      const secs = ["INTRO","VERSE","VERSE","BRIDGE","CHORUS","CHORUS","BREAK","END"];
+      const secCols = ["#34d399","#22d3ee","#22d3ee","#a78bfa","#fbbf24","#fbbf24","#f97316","#f472b6"];
+      const sc = secCols[curBar % secs.length];
+      ctx.fillStyle = sc + "22"; ctx.fillRect(10, 86, 128, 15);
+      ctx.fillStyle = sc; ctx.font = "800 8.5px monospace";
+      ctx.fillText(`BAR ${String(curBar+1).padStart(2,"0")}/${String(totalBars).padStart(2,"0")} · ${secs[curBar % secs.length]}`, 14, 96.5, 120);
+      ctx.fillStyle = "#22d3ee22"; ctx.fillRect(142, 86, 88, 15);
+      ctx.fillStyle = ks[0].val === 0 ? "#64748b" : "#34d399"; ctx.textAlign = "center";
+      ctx.fillText(ks[0].val === 0 ? "HOLD ARP:ON" : ks[3].fmt(ks[3].val), 186, 96.5, 84);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#0c111d"; ctx.fillRect(10, 103, 126, 40);
+      ctx.strokeStyle = sc + "77"; ctx.strokeRect(10.5, 103.5, 125, 39);
+      ctx.fillStyle = "#f8fafc"; ctx.font = "800 16px sans-serif";
+      ctx.fillText(ks[0].val === 0 ? "SELECT" : chordSeq[curBar % chordSeq.length], 15, 123, 82);
+      ctx.fillStyle = "#22d3ee"; ctx.font = "700 8px monospace";
+      ctx.fillText(ks[0].fmt(ks[0].val) + " · " + ks[2].fmt(ks[2].val), 15, 138, 116);
+      ctx.fillStyle = "#0c111d"; ctx.fillRect(140, 103, 90, 40);
+      for (let r = 0; r < 4; r++) {
+        const bi = (curBar + r) % totalBars;
+        ctx.fillStyle = r === 0 ? sc : "#94a3b8"; ctx.font = "700 8px monospace";
+        ctx.fillText(`${String(bi+1).padStart(2,"0")} ${chordSeq[bi % chordSeq.length]}`, 144, 113 + r * 9.5, 82);
+      }
+      const pw = Math.floor((W - 20 - (totalBars - 1) * 2) / totalBars);
+      for (let bi = 0; bi < totalBars; bi++) {
+        ctx.fillStyle = bi === curBar ? sc : "#164e63";
+        ctx.fillRect(10 + bi * (pw + 2), 148, pw, 9);
+      }
+    } else if (curPage === "FX") {
       const cols = curSub === 1 ? ["#22d3ee", "#fbbf24", "#34d399", "#f97316"] : ["#22d3ee", "#34d399", "#fbbf24", "#f97316"];
       ks.forEach((k, i) => {
         const bx = 11 + i * 56, by = 88, bw = 50, cx = bx + 25, cy = by + 20;
